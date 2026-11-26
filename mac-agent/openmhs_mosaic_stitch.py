@@ -12,7 +12,7 @@ from PIL import Image
 
 LOG = logging.getLogger("openmhs.mosaic_stitch")
 
-EXTENSION_ID = "org.openmhs.scan-mosaic"
+EXTENSION_ID = "org.microworld.scan-mosaic"
 MICROGRAPHS = "/var/openflexure/data/micrographs"
 PREVIEW_DIR = "/var/openflexure/data/scan-mosaic"
 PREVIEW_NAME = "preview.jpg"

@@ -430,7 +430,7 @@
 <script>
 import axios from "axios";
 
-const VP_EXT = "org.openmhs.visual-prompts";
+const VP_EXT = "org.microworld.visual-prompts";
 
 export default {
   name: "OpenmhsAgentTool",
@@ -1634,7 +1634,7 @@ export default {
       try {
         const localUrl = this.localSupervisorOk
           ? "http://127.0.0.1:18765/ui/events"
-          : `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/ui/events`;
+          : `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/ui/events`;
         const { data } = await axios.get(localUrl, {
           params: { after: this.uiEventAfter || 0, limit: 50 },
           timeout: 2500
@@ -1961,7 +1961,7 @@ export default {
       const {
         data
       } = await axios.get(
-        `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/workspace`,
+        `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/workspace`,
         { params: { path: rel }, timeout: 8000 }
       );
       const entries = (data && data.entries) || [];
@@ -1996,7 +1996,7 @@ export default {
         const {
           data
         } = await axios.get(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/views`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/views`,
           { timeout: 8000 }
         );
         this.cameraViews = (data && data.views) || [];
@@ -2076,7 +2076,7 @@ export default {
       if (sid) {
         try {
           await axios.post(
-            `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/agent`,
+            `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/agent`,
             { session_id: sid, ...payload },
             { params: { session_id: sid }, timeout: 8000 }
           );
@@ -2088,7 +2088,7 @@ export default {
       if (this.currentViewId) {
         try {
           await axios.post(
-            `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/views`,
+            `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/views`,
             {
               action: "save_analysis",
               view_id: this.currentViewId,
@@ -2995,7 +2995,7 @@ export default {
           if (this.sessionId && this.currentViewId) {
             try {
               await axios.post(
-                `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/views`,
+                `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/views`,
                 {
                   action: "bind-session",
                   view_id: this.currentViewId,
@@ -3079,7 +3079,7 @@ export default {
         if (vid && this.sessionId) {
           try {
             await axios.post(
-              `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/views`,
+              `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/views`,
               {
                 action: "bind-session",
                 view_id: vid,

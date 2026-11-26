@@ -4,7 +4,7 @@
 
 Find a microscope, move and focus the stage, capture a tiled scan, then mark the exact region you want to revisit or analyze. MicroWorld brings the live camera, stage controls and Slide viewer into one app. The Mac runs the bundled PC Worker for Canvas storage, registration and fusion. An optional MCP connection lets Codex start a scan and work with the ROI you marked.
 
-[Download Mac and Pi packages](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.1) · [Install and connect](#install-and-connect) · [Use with Codex](#use-with-codex) · [简体中文](README.zh-CN.md)
+[Download Mac and Pi packages](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.2) · [Install and connect](#install-and-connect) · [Use with Codex](#use-with-codex) · [简体中文](README.zh-CN.md)
 
 ![MicroWorld Canvas showing a four-tile Slide, a marked rectangular ROI, and the Layers inspector](docs/images/canvas-roi.jpg)
 
@@ -16,12 +16,12 @@ Find a microscope, move and focus the stage, capture a tiled scan, then mark the
 
 ### 1. Install on the Pi
 
-Get **MicroWorld-0.1.1-Pi.tar.gz** and **MicroWorld-0.1.1-Pi.tar.gz.sha256** from the [public release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.1). Download directly to the Pi or copy the two files from the Mac. With the microscope idle, run on the Pi:
+Get **MicroWorld-0.1.2-Pi.tar.gz** and **MicroWorld-0.1.2-Pi.tar.gz.sha256** from the [public release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.2). Download directly to the Pi or copy the two files from the Mac. With the microscope idle, run on the Pi:
 
 ```bash
-sha256sum -c MicroWorld-0.1.1-Pi.tar.gz.sha256
-tar -xzf MicroWorld-0.1.1-Pi.tar.gz
-cd MicroWorld-0.1.1-Pi
+sha256sum -c MicroWorld-0.1.2-Pi.tar.gz.sha256
+tar -xzf MicroWorld-0.1.2-Pi.tar.gz
+cd MicroWorld-0.1.2-Pi
 sudo ./install-microworld-pi.sh
 ```
 
@@ -29,9 +29,11 @@ The installer adds the Canvas scan and visual-prompt extensions, backs up any pr
 
 ### 2. Install on the Mac
 
-1. Download [MicroWorld-0.1.1-macOS-arm64.zip](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.1/MicroWorld-0.1.1-macOS-arm64.zip). Extract the entire folder to a writable location such as `~/Documents/MicroWorld`. Keep the launchers and `script/` beside `MicroWorld.app`.
+1. Download [MicroWorld-0.1.2-macOS-arm64.zip](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.2/MicroWorld-0.1.2-macOS-arm64.zip). Extract the entire folder to a writable location such as `~/Documents/MicroWorld`. Keep the launchers and `script/` beside `MicroWorld.app`.
 2. Open **MicroWorld.app** and allow **Local Network** access. This preview uses ad-hoc signing. If macOS blocks the first launch, follow [Apple's instructions for approving an app](https://support.apple.com/en-us/102445).
 3. Select the Pi in **Microscopes** and click **Connect**. If discovery misses it, use **Add by Address** and enter its hostname or IP with port `5000`, for example `microscope.local:5000`. MicroWorld starts its bundled PC Worker when it connects to a Pi with the extensions. For Canvas over LAN or VPN, the Pi must be able to reach the Mac's TCP port `18766` on the private network.
+
+To upgrade, quit the old app and replace `MicroWorld.app` in its existing folder to keep its workspace. The new app identifier is `org.microworld.app`. macOS may ask for Local Network access again. Existing `microworld://` links still use the same scheme.
 
 ### 3. Try a first scan
 
@@ -85,4 +87,4 @@ cd MicroWorld
 open MicroWorld.app
 ```
 
-The build packages the SwiftUI app, Python runtime and PC Worker, MCP server and browser Slide viewer. To package the Pi extensions from this checkout, run `./script/build_pi_release.sh 0.1.1`. For source attribution see [NOTICE.md](NOTICE.md). The desktop layout draws on [openUC2 ImSwitch](https://github.com/openUC2/ImSwitch) and [Apple's macOS interface guidelines](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos).
+The build packages the SwiftUI app, Python runtime and PC Worker, MCP server and browser Slide viewer. To package the Pi extensions from this checkout, run `./script/build_pi_release.sh 0.1.2`. For source attribution see [NOTICE.md](NOTICE.md). The desktop layout draws on [openUC2 ImSwitch](https://github.com/openUC2/ImSwitch) and [Apple's macOS interface guidelines](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos).

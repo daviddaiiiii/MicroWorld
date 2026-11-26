@@ -19,13 +19,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request
 
-from network import HTTP, discover, identify, read_json
+from network import HTTP, LEGACY_API, MICROWORLD_API, discover, identify, read_json
 
 RESOURCES = Path(__file__).resolve().parents[1]
 WEB = RESOURCES / "Web"
 PORT = 18766
 LOCAL = f"http://127.0.0.1:{PORT}"
-SCAN = "/api/v2/extensions/org.openmhs.scan-mosaic"
+EXTENSIONS = "/api/v2/extensions/"
 LEGACY = "http://127.0.0.1:18765"
 HOP_HEADERS = {"connection", "content-length", "transfer-encoding", "date", "server",
                "keep-alive", "access-control-allow-origin", "vary"}
@@ -73,6 +73,7 @@ def serve(args):
     if target["id"] != args.id:
         raise RuntimeError("The address now belongs to a different microscope. Refresh Devices.")
     base = target["url"]
+    namespace = target["api_namespace"]
     session_cookie = secrets.token_urlsafe(24)
     root = Path(args.root).resolve()
     workspace = root / "Workspace" / args.id
@@ -91,6 +92,7 @@ def serve(args):
         OPENMHS_WORKSPACE=str(workspace),
         OPENMHS_REPO=str(root),
         OPENMHS_MICROSCOPE_URL=base,
+        MICROWORLD_API_NAMESPACE=namespace,
         OPENMHS_SUPERVISOR_HOST=local_ip,
         OPENMHS_SUPERVISOR_PORT=str(PORT),
         OPENMHS_SUPERVISOR_URL=f"http://{local_ip}:{PORT}",
@@ -145,12 +147,14 @@ def serve(args):
         def static_file(self):
             path = urlsplit(self.path).path
             if path == "/desktop/config.js":
-                payload = json.dumps({"microscopeURL": base, "supervisorURL": LOCAL})
+                payload = json.dumps({"microscopeURL": base, "supervisorURL": LOCAL,
+                                      "apiNamespace": namespace})
                 self._bytes(200, f"window.__MICROWORLD__ = {payload};".encode(), "text/javascript", "no-store")
                 return True
             if path == "/desktop/status":
                 self._json(200, {**worker.worker_status(), "device_id": args.id,
-                                 "openmhs": target["openmhs"], "history": str(history)})
+                                 "openmhs": target["openmhs"], "api_namespace": namespace,
+                                 "history": str(history)})
                 return True
             if path == "/desktop/session":
                 self._json(200, {"device_id": args.id})
@@ -218,9 +222,16 @@ def serve(args):
                 if not 0 <= size <= 64 * 1024 * 1024:
                     raise ValueError("Request is too large.")
                 body = self.rfile.read(size) if size else None
-                headers = {k: self.headers[k] for k in ("Accept", "Content-Type", "X-OpenMHS-Client", "Range")
-                           if k in self.headers}
-                req = Request(base + self.path, data=body, headers=headers, method=self.command)
+                headers = {k: self.headers[k] for k in ("Accept", "Content-Type", "Range") if k in self.headers}
+                client = self.headers.get("X-MicroWorld-Client") or self.headers.get("X-OpenMHS-Client")
+                if client:
+                    header = "X-OpenMHS-Client" if namespace == LEGACY_API else "X-MicroWorld-Client"
+                    headers[header] = client
+                path = self.path
+                canonical_prefix = EXTENSIONS + MICROWORLD_API + "."
+                if namespace == LEGACY_API and path.startswith(canonical_prefix):
+                    path = EXTENSIONS + LEGACY_API + "." + path[len(canonical_prefix):]
+                req = Request(base + path, data=body, headers=headers, method=self.command)
                 try:
                     upstream = HTTP.open(req, timeout=125)
                 except HTTPError as exc:
@@ -307,7 +318,7 @@ def serve(args):
             except (OSError, ValueError):
                 pass
             if same_device:
-                if read_json(base + SCAN + "/hardware").get("busy"):
+                if read_json(base + EXTENSIONS + namespace + ".scan-mosaic/hardware").get("busy"):
                     raise RuntimeError("The selected microscope is running an acquisition. Connect after it finishes.")
                 stopped = request_json(LEGACY + "/stop", {})
                 if stopped.get("worker_running"):
@@ -320,6 +331,7 @@ def serve(args):
         write_atomic(root / "State" / "connection.json", json.dumps({
             "id": args.id, "url": base, "workspace": str(workspace), "history": str(history),
             "desktop": LOCAL, "pid": os.getpid(), "openmhs": target["openmhs"],
+            "api_namespace": namespace,
         }, indent=2) + "\n")
         if args.parent:
             def watch_parent():

@@ -268,9 +268,8 @@ def _http_bytes(url: str, timeout: float = 60.0) -> bytes:
 
 
 def _scan_ext(path: str) -> str:
-    return "{}/api/v2/extensions/org.openmhs.scan-mosaic{}".format(
-        _microscope_base(), path
-    )
+    namespace = os.environ.get("MICROWORLD_API_NAMESPACE", "org.microworld")
+    return f"{_microscope_base()}/api/v2/extensions/{namespace}.scan-mosaic{path}"
 
 
 def layout_from_positions(

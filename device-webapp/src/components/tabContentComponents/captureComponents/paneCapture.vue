@@ -546,9 +546,9 @@ export default {
         .then(response => {
           var plugins = response.data;
           // Prefer MicroWorld live-mosaic scan; fall back to stock OF scan
-          var mosaicExt = plugins.find(
-            e => e.title === "org.openmhs.scan-mosaic"
-          );
+          var mosaicExt =
+            plugins.find(e => e.title === "org.microworld.scan-mosaic") ||
+            plugins.find(e => e.title === "org.openmhs.scan-mosaic");
           var foundExtension =
             mosaicExt || plugins.find(e => e.title === "org.openflexure.scan");
           if (

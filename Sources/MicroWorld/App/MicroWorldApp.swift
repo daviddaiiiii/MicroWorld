@@ -6,6 +6,23 @@ struct MicroWorldApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = DeviceStore()
 
+    init() {
+        let defaults = UserDefaults.standard
+        let migrationKey = "didMigrateLegacyPreferences"
+        if !defaults.bool(forKey: migrationKey) {
+            let legacy = defaults.persistentDomain(forName: "org.openmhs.microworld") ?? [:]
+            let settings: Set<String> = [
+                "advancedCaptureOptions", "advancedScanOptions", "stageStepXY", "stageStepZ", "autofocusSpan"
+            ]
+            for (key, value) in legacy where settings.contains(key) || key.hasPrefix("pendingCanvasDecisions.") {
+                if defaults.object(forKey: key) == nil {
+                    defaults.set(value, forKey: key)
+                }
+            }
+            defaults.set(true, forKey: migrationKey)
+        }
+    }
+
     var body: some Scene {
         WindowGroup("MicroWorld", id: "microworld") {
             ContentView(store: store)

@@ -51,7 +51,7 @@ except Exception:
 
 LOG = logging.getLogger("openmhs.pc_worker")
 MICROSCOPE_URL = os.environ.get("OPENMHS_MICROSCOPE_URL", "http://127.0.0.1:5000").rstrip("/")
-EXT = "org.openmhs.visual-prompts"
+EXT = os.environ.get("MICROWORLD_API_NAMESPACE", "org.microworld") + ".visual-prompts"
 WORKER_ID = os.environ.get("OPENMHS_AGENT_WORKER_ID", "pc-worker")
 POLL_S = float(os.environ.get("OPENMHS_WORKER_POLL_S", "1.5"))
 
@@ -264,10 +264,10 @@ def _finalize_after_sync(sid: str) -> None:
             return
 
         try:
+            from openmhs_mosaic_store import _scan_ext
+
             http_json(
-                "{}/api/v2/extensions/org.openmhs.scan-mosaic/cleanup_tiles".format(
-                    MICROSCOPE_URL
-                ),
+                _scan_ext("/cleanup_tiles"),
                 method="POST",
                 data={
                     "save_slide": True,
@@ -310,15 +310,11 @@ def maybe_ingest_workspace(skip_session_id: Optional[str] = None) -> None:
 def maybe_sync_scan() -> None:
     """During/after scan: continuously sync tiles Pi→Mac; finalize when done."""
     try:
-        from openmhs_mosaic_store import sync_pull_incremental
+        from openmhs_mosaic_store import _scan_ext, sync_pull_incremental
     except Exception:
         return
     try:
-        details = http_json(
-            "{}/api/v2/extensions/org.openmhs.scan-mosaic/live_details".format(
-                MICROSCOPE_URL
-            )
-        )
+        details = http_json(_scan_ext("/live_details"))
     except Exception:
         return
     try:

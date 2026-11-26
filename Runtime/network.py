@@ -12,6 +12,8 @@ import urllib.request
 from urllib.parse import urlsplit
 
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+MICROWORLD_API = "org.microworld"
+LEGACY_API = "org.openmhs"
 DEVICE_ID = re.compile(r"openflexure:microscope:([a-zA-Z0-9-]+)")
 
 
@@ -44,9 +46,11 @@ def identify(address, timeout=3):
     identity = DEVICE_ID.search(str(data.get("title", "")) + " " + str(data.get("id", "")))
     if "org.openflexure.microscope" not in data.get("@type", []) or not identity:
         raise ValueError(f"{url} did not identify itself as an OpenFlexure microscope.")
-    names = data.get("actions", {})
+    actions = data.get("actions") or {}
+    namespace = next((ns for ns in (MICROWORLD_API, LEGACY_API)
+                      if ns + ".scan-mosaic/tile" in actions), None)
     return {"id": identity.group(1).lower(), "url": url,
-            "openmhs": "org.openmhs.scan-mosaic/tile" in names}
+            "openmhs": namespace is not None, "api_namespace": namespace or MICROWORLD_API}
 
 
 def run_output(argv, timeout):

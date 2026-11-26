@@ -957,28 +957,28 @@ export default {
       return `${this.$store.getters.baseUri}/api/v2/extensions`;
     },
     mosaicTileUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/tile`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/tile`;
     },
     liveDetailsUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/live_details`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/live_details`;
     },
     hardwareUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/hardware`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/hardware`;
     },
     previewBaseUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/latest_preview_stitch.jpg`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/latest_preview_stitch.jpg`;
     },
     tileAtBaseUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/tile_at`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/tile_at`;
     },
     macMosaicBase() {
       // Prefer Pi reverse-proxy so browser never needs localhost/LAN to Mac
       const sid = this.macSessionId || this.sessionId;
       if (!sid) return null;
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac`;
     },
     macViewsUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/views`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/views`;
     },
     macCurrentViewUri() {
       return `${this.macViewsUri}/current`;
@@ -988,13 +988,13 @@ export default {
       return sid ? { session_id: sid } : {};
     },
     tileLayoutUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/tile_layout`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/tile_layout`;
     },
     cleanupUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/cleanup_tiles`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/cleanup_tiles`;
     },
     refineUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/refine`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/refine`;
     },
     showScanFab() {
       // The Camera toolbar owns the only New Canvas entry. This container is
@@ -1413,7 +1413,7 @@ export default {
     canvasPreviewUrl(p) {
       return `${
         this.$store.getters.baseUri
-      }/api/v2/extensions/org.openmhs.scan-mosaic/mac/preview.jpg?session_id=${encodeURIComponent(
+      }/api/v2/extensions/org.microworld.scan-mosaic/mac/preview.jpg?session_id=${encodeURIComponent(
         p.id
       )}&t=${p.refresh || 0}`;
     },
@@ -1597,7 +1597,7 @@ export default {
         const active =
           sid === (this.studioSession || this.macSessionId || this.sessionId);
         if (trash) {
-          const uri = `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`;
+          const uri = `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`;
           const { data: d } = await axios.post(uri, {
             operation: "canvas",
             action: "load",
@@ -1646,7 +1646,7 @@ export default {
       if (!sid) return;
       try {
         const { data: d } = await axios.post(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
           { operation: "canvas", action: "status", session_id: sid },
           { timeout: 10000 }
         );
@@ -1723,7 +1723,7 @@ export default {
       }
       const sid = this.macSessionId || this.sessionId;
       if (payload.session_id !== sid) return;
-      const uri = `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`;
+      const uri = `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`;
       this.roiRetakeBusy = true;
       try {
         const { data: plan } = await axios.post(
@@ -2451,7 +2451,7 @@ export default {
       }
       try {
         await axios.delete(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/session`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/session`,
           { params: { session_id: rid }, timeout: 15000 }
         );
       } catch (_) {
@@ -2799,7 +2799,7 @@ export default {
         const {
           data
         } = await axios.get(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/session`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/session`,
           { params: { session_id: id }, timeout: 8000 }
         );
         const man = (data && data.manifest) || data || {};
@@ -2849,7 +2849,7 @@ export default {
           const {
             data
           } = await axios.get(
-            `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/agent`,
+            `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/agent`,
             { params: { session_id: id }, timeout: 8000 }
           );
           const snap = data && data.agent;
@@ -2868,7 +2868,7 @@ export default {
         const {
           data
         } = await axios.get(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/session`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/session`,
           { params: { session_id: id }, timeout: 6000 }
         );
         const man = (data && data.manifest) || data || {};
@@ -3104,7 +3104,7 @@ export default {
           const {
             data
           } = await axios.get(
-            `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/session`,
+            `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/session`,
             { params: { session_id: sid }, timeout: 6000 }
           );
           const man = (data && data.manifest) || data || {};
@@ -3601,7 +3601,7 @@ export default {
       const id = this.ensureHardwareClientId();
       return {
         timeout,
-        headers: id ? { "X-OpenMHS-Client": id } : {}
+        headers: id ? { "X-MicroWorld-Client": id } : {}
       };
     },
     async refreshHardwareState() {
@@ -3838,7 +3838,7 @@ export default {
       // Prefer live values from Pi if available
       axios
         .get(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/live_details`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/live_details`,
           {
             timeout: 2500
           }
@@ -3867,7 +3867,7 @@ export default {
       this.scaleStatus = "Jogging & measuring…";
       try {
         const r = await axios.post(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/calibrate_scale`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/calibrate_scale`,
           { probe_steps: 600 },
           { timeout: 60000 }
         );
@@ -4205,7 +4205,7 @@ export default {
         this.scanStatus = "Loading Continue path from PC…";
         try {
           const { data } = await axios.post(
-            `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/hydrate`,
+            `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/hydrate`,
             { session_id: sid },
             { timeout: 20000 }
           );
@@ -4249,7 +4249,7 @@ export default {
         const {
           data
         } = await axios.get(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.visual-prompts/agent`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.visual-prompts/agent`,
           { timeout: 3000 }
         );
         if (data && data.worker_online && data.supervisor_url) return true;
@@ -4257,7 +4257,7 @@ export default {
         if (data && data.supervisor_url) {
           try {
             const r = await axios.get(
-              `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/list`,
+              `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/list`,
               { timeout: 4000 }
             );
             if (r.data && (r.data.ok || r.data.sessions)) return true;
@@ -4272,7 +4272,7 @@ export default {
         const {
           data
         } = await axios.get(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/list`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/list`,
           { timeout: 4000 }
         );
         return !!(data && (data.ok || data.sessions));
@@ -4632,7 +4632,7 @@ export default {
         const {
           data
         } = await axios.get(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.visual-prompts/agent`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.visual-prompts/agent`,
           { timeout: 3500 }
         );
         if (data && data.supervisor_url) {
@@ -4666,7 +4666,7 @@ export default {
         const {
           data
         } = await axios.get(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/session`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/session`,
           { params: { session_id: sid }, timeout: 5000 }
         );
         const man = (data && data.manifest) || data || {};
@@ -4831,7 +4831,7 @@ export default {
         // Start refine via Pi→Mac proxy (never hit Mac from browser)
         try {
           await axios.post(
-            `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/refine`,
+            `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/refine`,
             { align: "full", session_id: sid },
             { params: { session_id: sid }, timeout: 12000 }
           );
@@ -4843,7 +4843,7 @@ export default {
           let data = null;
           try {
             const r = await axios.get(
-              `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/refine_status`,
+              `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/refine_status`,
               { params: { session_id: sid }, timeout: 8000 }
             );
             data = r.data;
@@ -5024,7 +5024,7 @@ export default {
       this.canvasStatusBusy = true;
       try {
         const { data } = await axios.post(
-          `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`,
+          `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
           { operation: "canvas", action: "status", session_id: sid },
           { timeout: 6000 }
         );

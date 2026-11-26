@@ -77,7 +77,8 @@ final class Runtime {
                 return Connection(id: device.id, address: address,
                                   workspace: URL(fileURLWithPath: info.workspace, isDirectory: true),
                                   history: URL(fileURLWithPath: info.history, isDirectory: true),
-                                  openmhs: info.openmhs)
+                                  openmhs: info.openmhs,
+                                  apiNamespace: info.apiNamespace ?? "org.openmhs")
             }
             try await Task.sleep(for: .milliseconds(250))
         }
@@ -104,12 +105,14 @@ struct DesktopStatus: Decodable {
     let microscope: String
     let workerRunning: Bool
     let openmhs: Bool
+    let apiNamespace: String?
     let workspace: String
     let history: String
 
     enum CodingKeys: String, CodingKey {
         case deviceID = "device_id"
         case workerRunning = "worker_running"
+        case apiNamespace = "api_namespace"
         case microscope, openmhs, workspace, history
     }
 }

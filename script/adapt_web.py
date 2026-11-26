@@ -71,10 +71,10 @@ change(observation, '''    this.$nextTick(() => {
       }
     });''')
 studio = src / "components/tabContentComponents/openmhsComponents/canvasStudio.vue"
-change(studio, '''          `${this.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`,
+change(studio, '''          `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
           { ...body, operation: "canvas", session_id: this.session },''', '''          new URLSearchParams(window.location.search).has("slide")
             ? `/mosaic/${encodeURIComponent(this.session)}/canvas`
-            : `${this.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`,
+            : `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
           { ...body, operation: "canvas", session_id: this.session },''')
 change(index, "</body>", '''    <script>
       const mwQuery = new URLSearchParams(window.location.search);

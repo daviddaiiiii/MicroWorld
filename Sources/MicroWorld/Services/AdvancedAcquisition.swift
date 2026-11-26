@@ -29,8 +29,9 @@ extension InstrumentAPI {
             path(description.actions?[name]?.forms?.first(where: { $0.op == "invokeaction" })?.href)
         }
         let mapping = "org.openflexure.camera_stage_mapping/"
+        let mosaic = "\(connection.apiNamespace).scan-mosaic"
         var capabilities = AcquisitionCapabilities()
-        capabilities.mosaicScan = action("org.openmhs.scan-mosaic/tile")
+        capabilities.mosaicScan = action(mosaic + "/tile")
         capabilities.stockScan = action("org.openflexure.scan/tile")
         capabilities.smartStack = action("org.openflexure.smart-stack/tile")
         capabilities.skipsEmptyFields = description.actions?.keys.contains {
@@ -50,7 +51,7 @@ extension InstrumentAPI {
                 path(extensions.first { $0.title == title }?.links?[key]?.href)
             }
             let title = "org.openflexure.camera_stage_mapping"
-            capabilities.mosaicScan = capabilities.mosaicScan ?? link("org.openmhs.scan-mosaic", "tile")
+            capabilities.mosaicScan = capabilities.mosaicScan ?? link(mosaic, "tile")
             capabilities.stockScan = capabilities.stockScan ?? link("org.openflexure.scan", "tile")
             capabilities.smartStack = capabilities.smartStack ?? link("org.openflexure.smart-stack", "tile")
             capabilities.calibrateXY = capabilities.calibrateXY ?? link(title, "calibrate_xy")

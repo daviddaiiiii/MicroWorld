@@ -11,12 +11,11 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request
 
-from network import HTTP, identify, read_json
+from network import HTTP, LEGACY_API, identify, read_json
 
 ROOT = Path(sys.argv[1]).resolve()
 STATE = ROOT / "State" / "connection.json"
 LOCAL = "http://127.0.0.1:18766"
-SCAN = "/api/v2/extensions/org.openmhs.scan-mosaic"
 IDENTIFIER = re.compile(r"[a-zA-Z0-9_-]{1,120}")
 ACTION_PATH = re.compile(r"/api/v2/actions/([a-zA-Z0-9_-]{1,120})")
 SESSION_PARAM = {"type": "object", "properties": {"session_id": {"type": "string"}},
@@ -74,12 +73,14 @@ def slide_links(pinned, sid):
 
 
 def start_scan(pinned):
+    namespace = pinned.get("api_namespace", LEGACY_API)
     base = pinned["url"]
+    scan_api = f"{base}/api/v2/extensions/{namespace}.scan-mosaic"
     if not pinned.get("openmhs") or not read_json(LOCAL + "/desktop/status").get("worker_running"):
         raise RuntimeError("Connect to a microscope with the MicroWorld Pi extensions and a running PC Worker first.")
-    if read_json(base + SCAN + "/hardware").get("busy"):
+    if read_json(scan_api + "/hardware").get("busy"):
         raise RuntimeError("The microscope is busy.")
-    previous = read_json(base + SCAN + "/live_details")
+    previous = read_json(scan_api + "/live_details")
     if previous.get("cell_count"):
         previous_id = identifier(previous.get("session_id"), "previous session ID")
         try:
@@ -98,7 +99,7 @@ def start_scan(pinned):
         "tags": ["openmhs-scan", "microworld-mcp"],
     }
     checked_connection(pinned)
-    request = Request(base + SCAN + "/tile", data=json.dumps(body).encode(),
+    request = Request(scan_api + "/tile", data=json.dumps(body).encode(),
                       headers={"Content-Type": "application/json"})
     with HTTP.open(request, timeout=12) as response:
         action = json.load(response)
@@ -176,6 +177,7 @@ def run_extra(message, pinned, upstream):
 def main():
     pinned = state()
     os.environ["OPENMHS_MICROSCOPE_URL"] = pinned["url"]
+    os.environ["MICROWORLD_API_NAMESPACE"] = pinned.get("api_namespace", LEGACY_API)
     os.environ["OPENMHS_WORKSPACE"] = pinned["workspace"]
     os.environ["OPENMHS_VP_SYNC_DIR"] = str(Path(pinned["workspace"]) / "visual-prompts")
     os.environ["OPENMHS_VP_SYNC_ENABLED"] = "0"

@@ -13,7 +13,7 @@ final class LocalNetwork {
             if case .ready = state { DispatchQueue.main.async(execute: onReady) }
         }
         self.browser = browser
-        browser.start(queue: DispatchQueue(label: "org.openmhs.microworld.bonjour"))
+        browser.start(queue: DispatchQueue(label: "org.microworld.bonjour"))
     }
 
     deinit { browser?.cancel() }

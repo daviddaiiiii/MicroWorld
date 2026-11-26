@@ -113,7 +113,7 @@
 <script>
 import axios from "axios";
 
-const VP_EXT = "org.openmhs.visual-prompts";
+const VP_EXT = "org.microworld.visual-prompts";
 
 export default {
   name: "VisualPrompt",

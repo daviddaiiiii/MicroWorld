@@ -27,7 +27,8 @@ from typing import Any, Dict, List, Optional
 
 
 MICROSCOPE_URL = os.environ.get("OPENMHS_MICROSCOPE_URL", "http://127.0.0.1:5000").rstrip("/")
-EXT = "org.openmhs.visual-prompts"
+API_NAMESPACE = os.environ.get("MICROWORLD_API_NAMESPACE", "org.microworld")
+EXT = API_NAMESPACE + ".visual-prompts"
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 SYNC_ENABLED = os.environ.get("OPENMHS_VP_SYNC_ENABLED", "0").strip() in {"1", "true", "TRUE", "yes", "YES"}
 SYNC_DIR = Path(
@@ -69,7 +70,7 @@ def http_json(
         "Accept": "application/json",
         # Lets the Pi expose whether the current hardware lease belongs to a
         # browser/device or to the Codex MCP agent.
-        "X-OpenMHS-Client": "cursor-mcp",
+        ("X-OpenMHS-Client" if API_NAMESPACE == "org.openmhs" else "X-MicroWorld-Client"): "cursor-mcp",
     }
     if body is not None:
         headers["Content-Type"] = "application/json"

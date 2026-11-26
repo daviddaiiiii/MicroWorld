@@ -297,10 +297,12 @@ export default {
       return this.$store.getters.baseUri || window.location.origin;
     },
     vpBase() {
-      return `${this.microscopeOrigin}/api/v2/extensions/org.openmhs.visual-prompts`;
+      const namespace = (window.__MICROWORLD__ && window.__MICROWORLD__.apiNamespace) || "org.microworld";
+      return `${this.microscopeOrigin}/api/v2/extensions/${namespace}.visual-prompts`;
     },
     scanBase() {
-      return `${this.microscopeOrigin}/api/v2/extensions/org.openmhs.scan-mosaic`;
+      const namespace = (window.__MICROWORLD__ && window.__MICROWORLD__.apiNamespace) || "org.microworld";
+      return `${this.microscopeOrigin}/api/v2/extensions/${namespace}.scan-mosaic`;
     },
     hardwareBusy() {
       return !!(this.hardware && this.hardware.busy);

@@ -6,8 +6,18 @@ extension_dir="${OPENFLEXURE_EXTENSION_DIR:-/var/openflexure/extensions/microsco
 service="${OPENFLEXURE_SERVICE:-openflexure-microscope-server}"
 local_url="${MICROWORLD_PI_URL:-${OPENMHS_LOCAL_URL:-http://127.0.0.1:5000}}"
 backup_parent="${MICROWORLD_PI_BACKUP_DIR:-${OPENMHS_BACKUP_DIR:-/var/openflexure}}"
-scan_api="${local_url%/}/api/v2/extensions/org.openmhs.scan-mosaic"
+extension_api="${local_url%/}/api/v2/extensions"
+scan_api="$extension_api/org.microworld.scan-mosaic"
+legacy_scan_api="$extension_api/org.openmhs.scan-mosaic"
 backend_files=(
+    org_microworld_scan_mosaic.py
+    org_microworld_visual_prompts.py
+    microworld_scan_plan.py
+    microworld_hardware.py
+    microworld_registration.py
+    microworld_api_compat.py
+)
+legacy_files=(
     org_openmhs_scan_mosaic.py
     org_openmhs_visual_prompts.py
     openmhs_scan_plan.py
@@ -23,7 +33,7 @@ die() {
 restore_backup() {
     local backup="$1" file
     mkdir -p -- "$extension_dir" || return 1
-    for file in "${backend_files[@]}"; do
+    for file in "${backend_files[@]}" "${legacy_files[@]}"; do
         if [[ -f "$backup/extensions/$file" ]]; then
             cp -p -- "$backup/extensions/$file" "$extension_dir/$file" || return 1
         else
@@ -36,7 +46,8 @@ restore_backup() {
 
 check_idle() {
     local hardware_json
-    hardware_json="$(curl -fsS --max-time 4 "$scan_api/hardware" 2>/dev/null || true)"
+    hardware_json="$(curl -fsS --max-time 4 "$scan_api/hardware" 2>/dev/null ||
+        curl -fsS --max-time 4 "$legacy_scan_api/hardware" 2>/dev/null || true)"
     if [[ -n "$hardware_json" ]] && printf '%s' "$hardware_json" | python3 -c \
         'import json, sys; raise SystemExit(0 if json.load(sys.stdin).get("busy") else 1)'; then
         die "The microscope is busy. Finish the hardware operation before continuing."
@@ -84,7 +95,7 @@ check_idle
 
 backup_root="$(mktemp -d "$backup_parent/microworld-pi-backup-XXXXXXXX")"
 mkdir "$backup_root/extensions"
-for file in "${backend_files[@]}"; do
+for file in "${backend_files[@]}" "${legacy_files[@]}"; do
     if [[ -f "$extension_dir/$file" ]]; then
         cp -p -- "$extension_dir/$file" "$backup_root/extensions/$file"
     fi
@@ -112,10 +123,17 @@ mkdir -p -- "$extension_dir"
 for file in "${backend_files[@]}"; do
     install -m 0644 -- "$bundle/backend/$file" "$extension_dir/$file"
 done
+# The new backend itself serves the legacy routes. Retire its predecessors
+# before restart so OpenFlexure never registers a second scheduler or store.
+for file in "${legacy_files[@]}"; do
+    rm -f -- "$extension_dir/$file"
+done
 systemctl restart -- "$service"
 for endpoint in \
     "$scan_api/status" \
-    "${local_url%/}/api/v2/extensions/org.openmhs.visual-prompts/status"; do
+    "$extension_api/org.microworld.visual-prompts/status" \
+    "$legacy_scan_api/status" \
+    "$extension_api/org.openmhs.visual-prompts/status"; do
     ready=0
     for _ in $(seq 1 30); do
         if curl -fsS --max-time 2 "$endpoint" >/dev/null 2>&1; then

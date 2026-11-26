@@ -160,7 +160,7 @@ final class DeviceStore {
     private func acquisitionIsBusy() async -> Bool {
         if instrumentBusy { return true }
         guard connection?.openmhs == true else { return false }
-        let path = "/api/v2/extensions/org.openmhs.scan-mosaic/hardware"
+        let path = InstrumentAPI.scan + "/hardware"
         return (try? await runtime.read(path, as: HardwareStatus.self))?.busy == true
     }
 

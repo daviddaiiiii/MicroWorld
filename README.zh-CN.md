@@ -4,7 +4,7 @@
 
 在一个窗口里找设备、看实时画面、控制载物台、扫描画布，再圈出要复拍或分析的 ROI。随 App 打包的 PC Worker 在 Mac 上保存 Canvas、配准和融合图像。接入 MCP 后，可以在 Codex 对话里发起扫描，再接着分析你在 App 里标出的区域。
 
-[下载 Mac 与 Pi 安装包](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.1) · [安装和连接](#安装和连接) · [配合 Codex 使用](#配合-codex-使用) · [English](README.md)
+[下载 Mac 与 Pi 安装包](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.2) · [安装和连接](#安装和连接) · [配合 Codex 使用](#配合-codex-使用) · [English](README.md)
 
 ![MicroWorld 的四图块 Slide，显示已标记的矩形 ROI 和图层面板](docs/images/canvas-roi.jpg)
 
@@ -16,12 +16,12 @@
 
 ### 1. 在 Pi 上安装扩展
 
-从[同一个公开 Release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.1)下载 **MicroWorld-0.1.1-Pi.tar.gz** 及对应的 **.tar.gz.sha256** 文件。可以在 Pi 上直接下载，也可从 Mac 把两个文件复制到 Pi。等显微镜空闲后，在 Pi 的下载目录执行：
+从[同一个公开 Release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.2)下载 **MicroWorld-0.1.2-Pi.tar.gz** 及对应的 **.tar.gz.sha256** 文件。可以在 Pi 上直接下载，也可从 Mac 把两个文件复制到 Pi。等显微镜空闲后，在 Pi 的下载目录执行：
 
 ```bash
-sha256sum -c MicroWorld-0.1.1-Pi.tar.gz.sha256
-tar -xzf MicroWorld-0.1.1-Pi.tar.gz
-cd MicroWorld-0.1.1-Pi
+sha256sum -c MicroWorld-0.1.2-Pi.tar.gz.sha256
+tar -xzf MicroWorld-0.1.2-Pi.tar.gz
+cd MicroWorld-0.1.2-Pi
 sudo ./install-microworld-pi.sh
 ```
 
@@ -29,9 +29,11 @@ sudo ./install-microworld-pi.sh
 
 ### 2. 在 Mac 上安装 App
 
-1. 下载 [MicroWorld-0.1.1-macOS-arm64.zip](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.1/MicroWorld-0.1.1-macOS-arm64.zip)。解压到有写入权限的位置，例如 `~/Documents/MicroWorld`。把启动脚本和 `script/` 留在 `MicroWorld.app` 同一目录。
+1. 下载 [MicroWorld-0.1.2-macOS-arm64.zip](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.2/MicroWorld-0.1.2-macOS-arm64.zip)。解压到有写入权限的位置，例如 `~/Documents/MicroWorld`。把启动脚本和 `script/` 留在 `MicroWorld.app` 同一目录。
 2. 打开 **MicroWorld.app**，按提示允许访问本地网络。这个预览版使用临时签名。如果 macOS 拦截首次启动，按 [Apple 的操作说明](https://support.apple.com/zh-cn/102445)批准打开。
 3. 在 **Microscopes** 里选中 Pi 并点 **Connect**。找不到时用 **Add by Address**，手动输入主机名或 IP 及端口，例如 `microscope.local:5000`。连接到已装扩展的 Pi 后，App 会启动自带的 PC Worker。Pi 需要能在局域网或 VPN 内回连 Mac 的 TCP `18766` 端口，才能同步 Canvas。
+
+升级时先退出旧 App，在现有目录替换 `MicroWorld.app`，即可沿用工作区。新版应用标识为 `org.microworld.app`，macOS 可能再次询问本地网络权限。现有 `microworld://` 链接仍可打开。
 
 ### 3. 试扫一张画布
 
@@ -74,4 +76,4 @@ cd MicroWorld
 open MicroWorld.app
 ```
 
-构建包含 SwiftUI App、Python 运行时、PC Worker、MCP 服务及浏览器 Slide 查看器。在此仓库运行 `./script/build_pi_release.sh 0.1.1` 可以重新打包 Pi 扩展。来源和归属见 [NOTICE.md](NOTICE.md)。
+构建包含 SwiftUI App、Python 运行时、PC Worker、MCP 服务及浏览器 Slide 查看器。在此仓库运行 `./script/build_pi_release.sh 0.1.2` 可以重新打包 Pi 扩展。来源和归属见 [NOTICE.md](NOTICE.md)。

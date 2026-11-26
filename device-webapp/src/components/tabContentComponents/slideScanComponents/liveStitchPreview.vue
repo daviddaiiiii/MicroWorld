@@ -55,10 +55,10 @@ export default {
   },
   computed: {
     liveDetailsUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/live_details`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/live_details`;
     },
     previewBaseUri() {
-      return `${this.$store.getters.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/latest_preview_stitch.jpg`;
+      return `${this.$store.getters.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/latest_preview_stitch.jpg`;
     }
   },
   watch: {

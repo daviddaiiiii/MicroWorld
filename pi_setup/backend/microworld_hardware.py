@@ -115,7 +115,8 @@ class HardwareGate:
             from flask import request
 
             value = (
-                request.headers.get("X-OpenMHS-Client")
+                request.headers.get("X-MicroWorld-Client")
+                or request.headers.get("X-OpenMHS-Client")
                 or request.headers.get("X-OpenMHS-Agent")
                 or request.remote_addr
             )

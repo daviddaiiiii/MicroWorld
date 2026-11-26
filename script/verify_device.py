@@ -14,8 +14,8 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL = "http://127.0.0.1:18766"
-SCAN = "/api/v2/extensions/org.openmhs.scan-mosaic"
-VP = "/api/v2/extensions/org.openmhs.visual-prompts"
+SCAN = "/api/v2/extensions/org.microworld.scan-mosaic"
+VP = "/api/v2/extensions/org.microworld.visual-prompts"
 STAGE = "/api/v2/instrument/state/stage/position"
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}),
                                    urllib.request.HTTPCookieProcessor(CookieJar()))

@@ -229,9 +229,9 @@ export default {
         .get(this.pluginsUri) // Get a list of plugins
         .then(response => {
           var plugins = response.data;
-          var mosaicExt = plugins.find(
-            e => e.title === "org.openmhs.scan-mosaic"
-          );
+          var mosaicExt =
+            plugins.find(e => e.title === "org.microworld.scan-mosaic") ||
+            plugins.find(e => e.title === "org.openmhs.scan-mosaic");
           var foundExtension =
             mosaicExt || plugins.find(e => e.title === "org.openflexure.scan");
           if (

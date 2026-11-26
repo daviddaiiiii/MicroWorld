@@ -14,9 +14,8 @@ def _digest(obj):return hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).
 def _json(path,data):
     tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(data,indent=2));tmp.replace(path)
 
-def _request(path,body=None):
-    base=store._microscope_base().rstrip('/')
-    req=Request(base+path,data=None if body is None else json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+def _request(url,body=None):
+    req=Request(url,data=None if body is None else json.dumps(body).encode(),headers={'Content-Type':'application/json'})
     with HTTP.open(req,timeout=15) as r:return json.load(r)
 
 def _id(value):return str(uuid.UUID(value))
@@ -94,7 +93,7 @@ def _start(sid,plan_id,confirm_same_sample=False):
             revision=store.session_dir(sid)/'tile-revisions'/plan_id;revision.mkdir(parents=True)
             replacements=[]
             for t in p['tiles']:
-                action=_request('/api/v2/extensions/org.openmhs.scan-mosaic/recapture_tile',
+                action=_request(store._scan_ext('/recapture_tile'),
                                 {'stage_position':t['stage_position'],'confirm_same_sample':True,'autofocus':not p.get('capture_current',False),
                                  'fast_autofocus':True,'autofocus_dz':1000,
                                  'move_only':p.get('kind')=='fov-move','capture_only':p.get('capture_current',False)})
@@ -103,14 +102,14 @@ def _start(sid,plan_id,confirm_same_sample=False):
                 deadline=time.monotonic()+300
                 while action.get('status') not in ('completed','error','failed','cancelled'):
                     if time.monotonic()>deadline:raise RuntimeError('Action timeout; do not retry blindly; inspect action_href')
-                    time.sleep(.5);action=_request(href)
+                    time.sleep(.5);action=_request(store._microscope_base()+href)
                 if action['status']!='completed':raise RuntimeError(str(action.get('output') or action['status']))
                 result=action['output']
                 if p.get('kind')=='fov-move':
                     state.update(phase='completed',completed=1,stage_position=result['stage_position'],focus=result.get('focus',{}))
                     return
                 path=revision/('t_%s_%s.jpg'%(t['ix'],t['iy']))
-                with HTTP.open(store._microscope_base().rstrip('/')+'/api/v2/extensions/org.openmhs.scan-mosaic/recapture_image?token='+result['token'],timeout=20) as r:path.write_bytes(r.read())
+                with HTTP.open(store._scan_ext('/recapture_image?token=')+result['token'],timeout=20) as r:path.write_bytes(r.read())
                 from PIL import Image
                 with Image.open(path) as im:im.verify()
                 replacements.append(dict(t,relpath=str(path.relative_to(store.session_dir(sid))),

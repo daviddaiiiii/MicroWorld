@@ -35,6 +35,7 @@ struct Connection: Equatable, Identifiable {
     let workspace: URL
     let history: URL
     let openmhs: Bool
+    let apiNamespace: String
     let generation = UUID()
 }
 

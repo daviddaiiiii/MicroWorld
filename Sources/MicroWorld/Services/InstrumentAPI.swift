@@ -85,8 +85,8 @@ struct CameraSettings: Decodable {
 
 @MainActor
 final class InstrumentAPI {
-    static let scan = "/api/v2/extensions/org.openmhs.scan-mosaic"
-    static let prompts = "/api/v2/extensions/org.openmhs.visual-prompts"
+    static let scan = "/api/v2/extensions/org.microworld.scan-mosaic"
+    static let prompts = "/api/v2/extensions/org.microworld.visual-prompts"
     static let position = "/api/v2/instrument/state/stage/position"
     let connection: Connection
     let deviceURL: URL
@@ -104,7 +104,11 @@ final class InstrumentAPI {
     deinit { session.invalidateAndCancel() }
 
     func devicePath(_ path: String) -> URL {
-        URL(string: path, relativeTo: deviceURL)!.absoluteURL
+        let prefix = "/api/v2/extensions/org.microworld."
+        let route = path.hasPrefix(prefix)
+            ? "/api/v2/extensions/\(connection.apiNamespace)." + String(path.dropFirst(prefix.count))
+            : path
+        return URL(string: route, relativeTo: deviceURL)!.absoluteURL
     }
 
     func localPath(_ path: String) -> URL {

@@ -33,6 +33,7 @@ import threading
 import time
 import uuid
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -43,33 +44,33 @@ from labthings.views import ActionView, PropertyView, View
 from PIL import Image
 
 try:
-    from openmhs_scan_plan import center_hub_spec, spiral_grid_order
+    from microworld_scan_plan import center_hub_spec, spiral_grid_order
 except ImportError:  # OpenFlexure loads each extension by file path.
     import importlib.util
 
-    _plan_path = os.path.join(os.path.dirname(__file__), "openmhs_scan_plan.py")
-    _plan_spec = importlib.util.spec_from_file_location("openmhs_scan_plan", _plan_path)
+    _plan_path = os.path.join(os.path.dirname(__file__), "microworld_scan_plan.py")
+    _plan_spec = importlib.util.spec_from_file_location("microworld_scan_plan", _plan_path)
     if _plan_spec is None or _plan_spec.loader is None:
         raise
     _plan_module = importlib.util.module_from_spec(_plan_spec)
-    sys.modules["openmhs_scan_plan"] = _plan_module
+    sys.modules["microworld_scan_plan"] = _plan_module
     _plan_spec.loader.exec_module(_plan_module)
     center_hub_spec = _plan_module.center_hub_spec
     spiral_grid_order = _plan_module.spiral_grid_order
 
 try:
-    from openmhs_hardware import HardwareBusy, HardwareGate
+    from microworld_hardware import HardwareBusy, HardwareGate
 except ImportError:  # OpenFlexure loads each extension by file path.
     import importlib.util
 
-    _hardware_path = os.path.join(os.path.dirname(__file__), "openmhs_hardware.py")
+    _hardware_path = os.path.join(os.path.dirname(__file__), "microworld_hardware.py")
     _hardware_spec = importlib.util.spec_from_file_location(
-        "openmhs_hardware", _hardware_path
+        "microworld_hardware", _hardware_path
     )
     if _hardware_spec is None or _hardware_spec.loader is None:
         raise
     _hardware_module = importlib.util.module_from_spec(_hardware_spec)
-    sys.modules["openmhs_hardware"] = _hardware_module
+    sys.modules["microworld_hardware"] = _hardware_module
     _hardware_spec.loader.exec_module(_hardware_module)
     HardwareBusy = _hardware_module.HardwareBusy
     HardwareGate = _hardware_module.HardwareGate
@@ -84,7 +85,24 @@ try:
 except ImportError:  # pragma: no cover
     marshmallow = None
 
-EXTENSION_ID = "org.openmhs.scan-mosaic"
+# OpenFlexure can import extension files directly without adding their directory.
+try:
+    from microworld_api_compat import legacy_extension
+except ImportError:
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    _compat_spec = spec_from_file_location(
+        "microworld_api_compat", Path(__file__).with_name("microworld_api_compat.py")
+    )
+    if _compat_spec is None or _compat_spec.loader is None:
+        raise
+    _compat_module = module_from_spec(_compat_spec)
+    _compat_spec.loader.exec_module(_compat_module)
+    legacy_extension = _compat_module.legacy_extension
+
+EXTENSION_ID = "org.microworld.scan-mosaic"
+LEGACY_EXTENSION_ID = "org.openmhs.scan-mosaic"
+EXTENSION_VERSION = "1.17.0"
 MICROGRAPHS = "/var/openflexure/data/micrographs"
 PREVIEW_DIR = "/var/openflexure/data/scan-mosaic"
 PREVIEW_NAME = "preview.jpg"
@@ -1725,7 +1743,7 @@ def stitch_cells(
     if cells and _normalize_align(align) != "none":
         try:
             import importlib.util
-            module_name = "openmhs_registration"
+            module_name = "microworld_registration"
             if module_name not in sys.modules:
                 spec = importlib.util.spec_from_file_location(module_name, os.path.join(os.path.dirname(__file__), module_name + ".py"))
                 module = importlib.util.module_from_spec(spec)
@@ -2034,7 +2052,7 @@ class MosaicScanState(object):
 
 class ScanMosaicExtension(BaseExtension):
     def __init__(self):
-        BaseExtension.__init__(self, EXTENSION_ID, version="1.17.0")
+        BaseExtension.__init__(self, EXTENSION_ID, version=EXTENSION_VERSION)
         self.state = MosaicScanState()
         self.hardware = HardwareGate(os.path.join(PREVIEW_DIR, "hardware.json"))
         self._hardware_hooks_ready = False
@@ -2044,6 +2062,31 @@ class ScanMosaicExtension(BaseExtension):
         self._stock_patched = False
         self._focus_reports = {}
         os.makedirs(PREVIEW_DIR, exist_ok=True)
+        self.register_views()
+        try:
+            self.load_session_state()
+        except Exception:
+            logging.debug("session state restore skipped", exc_info=True)
+
+        def _late_patch():
+            for _ in range(60):
+                time.sleep(1.0)
+                try:
+                    if self.patch_stock_scan() and self.ensure_hardware_hooks():
+                        return
+                except Exception:
+                    logging.debug("late mosaic patch retry", exc_info=True)
+
+        try:
+            import threading
+
+            threading.Thread(
+                target=_late_patch, name="microworld-mosaic-patch", daemon=True
+            ).start()
+        except Exception:
+            logging.exception("Could not start mosaic patch thread")
+
+    def register_views(self):
         self.add_view(StatusView, "/status")
         self.add_view(HardwareStatusView, "/hardware")
         self.add_view(CaptureListView, "/captures")
@@ -2076,28 +2119,6 @@ class ScanMosaicExtension(BaseExtension):
         self.add_view(MacRecaptureView, "/mac/recapture")
         self.add_view(MacUiEventsView, "/mac/ui/events")
         self.add_view(MacAgentSnapshotView, "/mac/agent")
-        try:
-            self.load_session_state()
-        except Exception:
-            logging.debug("session state restore skipped", exc_info=True)
-
-        def _late_patch():
-            for _ in range(60):
-                time.sleep(1.0)
-                try:
-                    if self.patch_stock_scan() and self.ensure_hardware_hooks():
-                        return
-                except Exception:
-                    logging.debug("late mosaic patch retry", exc_info=True)
-
-        try:
-            import threading
-
-            threading.Thread(
-                target=_late_patch, name="openmhs-mosaic-patch", daemon=True
-            ).start()
-        except Exception:
-            logging.exception("Could not start mosaic patch thread")
 
     def ensure_hardware_hooks(self):
         """Install the gate on stock stage and autofocus entry points.
@@ -5381,7 +5402,7 @@ class TileAtView(View):
             resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             resp.headers["Pragma"] = "no-cache"
             if st.session_id:
-                resp.headers["X-OpenMHS-Session"] = str(st.session_id)
+                resp.headers["X-MicroWorld-Session"] = resp.headers["X-OpenMHS-Session"] = str(st.session_id)
             return resp
 
         nx = request.args.get("nx", request.args.get("x"))
@@ -5413,7 +5434,7 @@ class TileAtView(View):
                     resp.headers["Content-Type"] = ctype or "image/jpeg"
                     resp.headers["Cache-Control"] = "no-store"
                     if st.session_id:
-                        resp.headers["X-OpenMHS-Session"] = str(st.session_id)
+                        resp.headers["X-MicroWorld-Session"] = resp.headers["X-OpenMHS-Session"] = str(st.session_id)
                     return resp
                 except Exception:
                     logging.debug(
@@ -5427,8 +5448,8 @@ class TileAtView(View):
         resp = _send(path)
         try:
             if meta:
-                resp.headers["X-OpenMHS-Tile-IX"] = str(meta.get("ix"))
-                resp.headers["X-OpenMHS-Tile-IY"] = str(meta.get("iy"))
+                resp.headers["X-MicroWorld-Tile-IX"] = resp.headers["X-OpenMHS-Tile-IX"] = str(meta.get("ix"))
+                resp.headers["X-MicroWorld-Tile-IY"] = resp.headers["X-OpenMHS-Tile-IY"] = str(meta.get("iy"))
         except Exception:
             pass
         return resp
@@ -5465,7 +5486,7 @@ class CenterTileView(View):
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         resp.headers["Pragma"] = "no-cache"
         if st.session_id:
-            resp.headers["X-OpenMHS-Session"] = str(st.session_id)
+            resp.headers["X-MicroWorld-Session"] = resp.headers["X-OpenMHS-Session"] = str(st.session_id)
         return resp
 
 
@@ -5746,7 +5767,7 @@ class TileScanAPI(ActionView):
 def _mac_supervisor_base():
     """LAN URL of PC supervisor from visual-prompts heartbeat (or last known)."""
     try:
-        vp = find_extension("org.openmhs.visual-prompts")
+        vp = find_extension("org.microworld.visual-prompts")
         store = getattr(vp, "store", None) or vp
         info = getattr(store, "_agent_worker", None) or {}
         url = (info.get("supervisor_url") or "").strip().rstrip("/")
@@ -6117,4 +6138,7 @@ class MacTileView(View):
         return resp
 
 
-LABTHINGS_EXTENSIONS = (ScanMosaicExtension,)
+LABTHINGS_EXTENSIONS = (
+    ScanMosaicExtension,
+    legacy_extension(ScanMosaicExtension, EXTENSION_ID, LEGACY_EXTENSION_ID, EXTENSION_VERSION),
+)

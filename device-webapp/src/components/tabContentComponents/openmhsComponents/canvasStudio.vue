@@ -663,7 +663,7 @@ export default {
       this.busy = true;
       try {
         const { data: s } = await axios.post(
-          `${this.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`,
+          `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
           {
             operation: "status",
             session_id: this.session,
@@ -964,7 +964,7 @@ export default {
         this.sampleConfirmed = true;
         this.fovIntent = intent;
         this.activeFovJob = p.plan_id;
-        const uri = `${this.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`;
+        const uri = `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`;
         const { data: job } = await axios.post(
           uri,
           {
@@ -1088,7 +1088,7 @@ export default {
       }
       let request = axios
         .post(
-          `${this.baseUri}/api/v2/extensions/org.openmhs.scan-mosaic/mac/recapture`,
+          `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
           { ...body, operation: "canvas", session_id: this.session },
           {
             timeout:
@@ -1119,7 +1119,7 @@ export default {
       const suffix = full ? "" : "&thumb=1&width=320";
       return `${
         this.baseUri
-      }/api/v2/extensions/org.openmhs.scan-mosaic/mac/tile?session_id=${encodeURIComponent(
+      }/api/v2/extensions/org.microworld.scan-mosaic/mac/tile?session_id=${encodeURIComponent(
         this.session
       )}&ix=${encodeURIComponent(t.ix)}&iy=${encodeURIComponent(
         t.iy

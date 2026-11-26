@@ -1,7 +1,7 @@
 """MicroWorld Visual Prompt storage for OpenFlexure Microscope Server.
 
 Install on the Pi:
-  sudo cp org_openmhs_visual_prompts.py \\
+  sudo cp org_microworld_visual_prompts.py \\
     /var/openflexure/extensions/microscope_extensions/
   # or place this file and ensure LABTHINGS_EXTENSIONS is discoverable
   sudo systemctl restart openflexure-microscope-server
@@ -29,7 +29,24 @@ from labthings import fields, find_component
 from labthings.extensions import BaseExtension
 from labthings.views import PropertyView, View
 
-EXTENSION_ID = "org.openmhs.visual-prompts"
+# OpenFlexure can import extension files directly without adding their directory.
+try:
+    from microworld_api_compat import legacy_extension
+except ImportError:
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    _compat_spec = spec_from_file_location(
+        "microworld_api_compat", Path(__file__).with_name("microworld_api_compat.py")
+    )
+    if _compat_spec is None or _compat_spec.loader is None:
+        raise
+    _compat_module = module_from_spec(_compat_spec)
+    _compat_spec.loader.exec_module(_compat_module)
+    legacy_extension = _compat_module.legacy_extension
+
+EXTENSION_ID = "org.microworld.visual-prompts"
+LEGACY_EXTENSION_ID = "org.openmhs.visual-prompts"
+EXTENSION_VERSION = "1.6.0"
 DEFAULT_ROOT = Path("/var/openflexure/data/visual-prompts")
 DEFAULT_MAX_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB
 JOB_LEASE_SECONDS = 120
@@ -1354,8 +1371,11 @@ class VisualPromptStore(object):
 
 class VisualPromptsExtension(BaseExtension):
     def __init__(self):
-        super(VisualPromptsExtension, self).__init__(EXTENSION_ID, version="1.6.0")
+        super(VisualPromptsExtension, self).__init__(EXTENSION_ID, version=EXTENSION_VERSION)
         self.store = VisualPromptStore()
+        self.register_views()
+
+    def register_views(self):
         self.add_view(StatusView, "/status")
         self.add_view(CodexStatusView, "/codex")
         self.add_view(CodexPromptsView, "/codex/prompts")
@@ -1771,4 +1791,7 @@ class AnnotationsExportView(View):
             return {"error": str(exc)}, 500
 
 
-LABTHINGS_EXTENSIONS = (VisualPromptsExtension,)
+LABTHINGS_EXTENSIONS = (
+    VisualPromptsExtension,
+    legacy_extension(VisualPromptsExtension, EXTENSION_ID, LEGACY_EXTENSION_ID, EXTENSION_VERSION),
+)
