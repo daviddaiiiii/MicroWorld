@@ -1,0 +1,325 @@
+<template>
+  <div
+    id="stream-display"
+    ref="streamDisplay"
+    v-observe-visibility="visibilityChanged"
+    class="stream-display uk-width-1-1 uk-height-1-1 scrollTarget"
+  >
+    <img
+      v-if="isVisible"
+      ref="click-frame"
+      class="uk-align-center uk-margin-remove-bottom"
+      :hidden="!streamEnabled"
+      :src="streamImgUri"
+      alt="Stream"
+      @dblclick="clickMonitor"
+    />
+
+    <div v-if="!streamEnabled" class="uk-height-1-1">
+      <div v-if="$store.state.waiting" class="uk-position-center">
+        <div uk-spinner="ratio: 4.5"></div>
+      </div>
+
+      <div
+        v-else-if="$store.state.disableStream"
+        class="uk-position-center position-relative text-center"
+      >
+        Stream preview disabled
+      </div>
+
+      <div v-else class="uk-position-center position-relative text-center">
+        No active connection
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import axios from "axios";
+
+// Export main app
+export default {
+  name: "StreamDisplay",
+
+  data: function() {
+    return {
+      isVisible: false,
+      displaySize: [0, 0],
+      displayPosition: [0, 0],
+      resizeTimeoutId: setTimeout(this.doneResizing, 500)
+    };
+  },
+
+  computed: {
+    streamEnabled: function() {
+      return this.$store.getters.ready && !this.$store.state.disableStream;
+    },
+    thisStreamOpen: function() {
+      // Only a single MJPEG connection should be open at a time
+      return !(this.displaySize[0] == 0) && !(this.displaySize[1] == 0);
+    },
+    streamImgUri: function() {
+      return `${this.$store.getters.baseUri}/api/v2/streams/mjpeg`;
+    },
+    startPreviewUri: function() {
+      return `${this.$store.getters.baseUri}/api/v2/actions/camera/preview/start`;
+    },
+    stopPreviewUri: function() {
+      return `${this.$store.getters.baseUri}/api/v2/actions/camera/preview/stop`;
+    },
+    settingsUri: function() {
+      return `${this.$store.getters.baseUri}/api/v2/instrument/settings`;
+    },
+    autoGpuPreview: function() {
+      return this.$store.state.autoGpuPreview;
+    }
+  },
+
+  watch: {
+    autoGpuPreview: function(newValue) {
+      // When the GPU preview setting in the store changes, update the server
+      this.safePreviewRequest(newValue);
+    }
+  },
+
+  mounted() {
+    // A global signal listener to change the GPU preview state
+    this._togglePreviewListener = state => this.previewRequest(state);
+    this.$root.$on("globalTogglePreview", this._togglePreviewListener);
+    // A global signal listener to flash the stream element
+    this._flashStreamListener = () => this.flashStream();
+    this.$root.$on("globalFlashStream", this._flashStreamListener);
+
+    // Mutation observer
+    this.sizeObserver = new ResizeObserver(() => {
+      this.handleResize(); // For any element attached to the observer, run handleResize() on change
+    });
+    // Fetch streamDisplay component by ref
+    const streamDisplayElement = this.$refs.streamDisplay.parentNode;
+    // Attach streamDisplay to the size observer
+    this.sizeObserver.observe(streamDisplayElement);
+  },
+
+  created: function() {
+    // Send a request to start/stop GPU preview based on global setting
+    this.safePreviewRequest(this.autoGpuPreview);
+  },
+
+  beforeDestroy: function() {
+    clearTimeout(this.resizeTimeoutId);
+    // Remove global signal listener to change the GPU preview state
+    this.$root.$off("globalTogglePreview", this._togglePreviewListener);
+    // Remove global signal listener to flash the stream element
+    this.$root.$off("globalFlashStream", this._flashStreamListener);
+    // Disconnect the size observer
+    this.sizeObserver.disconnect();
+    // Remove from the array of active streams
+    this.$store.commit("removeStream", this._uid);
+  },
+
+  methods: {
+    visibilityChanged(isVisible) {
+      this.isVisible = isVisible;
+    },
+    flashStream: function() {
+      // Run an animation that flashes the stream (for capture feedback)
+      let element = this.$refs.streamDisplay;
+      element.classList.remove("uk-animation-fade");
+      element.offsetHeight; /* trigger reflow */
+      element.classList.add("uk-animation-fade");
+      setTimeout(function() {
+        element.classList.remove("uk-animation-fade");
+      }, 800);
+    },
+
+    clickMonitor: function(event) {
+      // Calculate steps from event coordinates
+      let xCoordinate = event.offsetX;
+      let yCoordinate = event.offsetY;
+
+      // Simply scaling by naturalHeight/offsetHeight may give the wrong answer!
+      // because we use content-fit: contain in the stylesheet, the img element
+      // may be larger than the picture.  So, we must determine whether the
+      // width or height is setting the scaling factor, and use a uniform scale
+      // factor.
+      let scale = Math.max(
+        event.target.naturalWidth / event.target.offsetWidth,
+        event.target.naturalHeight / event.target.offsetHeight
+      );
+
+      let xRelative = (0.5 * event.target.offsetWidth - xCoordinate) * scale;
+      let yRelative = (0.5 * event.target.offsetHeight - yCoordinate) * scale;
+
+      // Emit a signal to move, acted on by panelNavigate.vue
+      this.$root.$emit(
+        "globalMoveInImageCoordinatesEvent",
+        -xRelative,
+        -yRelative
+      );
+    },
+
+    handleResize: function() {
+      // Only fires resize event after no resize in 500ms (prevents resize event spam)
+      clearTimeout(this.resizeTimeoutId);
+      this.resizeTimeoutId = setTimeout(this.handleDoneResize, 250);
+    },
+
+    handleDoneResize: function() {
+      if (
+        this._isDestroyed ||
+        this._isBeingDestroyed ||
+        !this.$refs.streamDisplay
+      )
+        return;
+      // Recalculate size
+
+      this.recalculateSize();
+      // Handle closed stream
+      if (this.displaySize[0] == 0 && this.displaySize[1] == 0) {
+        // If this stream was previously active
+        if (this.$store.state.activeStreams[this._uid] == true) {
+          this.$store.commit("removeStream", this._uid);
+          // If all streams are closed, request the GPU preview close
+          var a = Object.values(this.$store.state.activeStreams);
+          let allClosed = a.every(v => v === false);
+          if (allClosed) {
+            this.safePreviewRequest(false);
+          }
+        }
+        // If resized to anything other than zero
+      } else {
+        this.$store.commit("addStream", this._uid);
+        if (this.$store.state.autoGpuPreview == true) {
+          // Start the preview immediately
+          this.safePreviewRequest(true);
+          // Send another start preview request after a timeout
+          /*
+          The internal logic of this component means that a stop GPU preview
+          request will only ever be sent if ALL stream components are invisible.
+          However, when switching tabs, sometimes the previous component will
+          react to becoming invisible before the new tab has become visible.
+          This results in a stop-preview request being sent JUST before the new
+          start preview request is sent. In an ideal network, this is fine, however
+          due to network jitter, these requests will occasionally be recieved out
+          of order, causing the preview to start in the new location, and then
+          quickly stop again.
+          Preventing this properly will involve some clever server-side logic
+          probably, however as a pit-stop solution, we always send another
+          start-preview request after 1 second. This means that either:
+          1. The initial requests happened in order, in which case this follow-up
+          request does nothing, or
+          2. The requests leapfrog eachother, stopping the preview, in which case
+          the follow-up request restarts the preview in the correct location.
+          */
+          setTimeout(() => this.safePreviewRequest(true), 250);
+        }
+      }
+    },
+
+    recalculateSize: function() {
+      if (!this.$refs.streamDisplay || !this.$refs.streamDisplay.parentNode)
+        return;
+      // Calculate stream size
+      let element = this.$refs.streamDisplay.parentNode;
+      let bound = element.getBoundingClientRect();
+
+      let elementSize = [bound.width, bound.height];
+
+      let elementPositionOnWindow = [bound.left, bound.top];
+      let windowPositionOnDisplay = [window.screenX, window.screenY];
+      let windowChromeHeight = window.outerHeight - window.innerHeight;
+      let elementPositionOnDisplay = [
+        Math.max(0, windowPositionOnDisplay[0] + elementPositionOnWindow[0]),
+        Math.max(
+          0,
+          windowPositionOnDisplay[1] +
+            elementPositionOnWindow[1] +
+            windowChromeHeight
+        )
+      ];
+
+      this.displaySize = elementSize;
+      this.displayPosition = elementPositionOnDisplay;
+    },
+
+    safePreviewRequest: function(state) {
+      if (this._isDestroyed || this._isBeingDestroyed) return;
+      // previewRequest, but only stopping preview if all streams are invisible
+      // and only starting preview if any stream is visible
+      var a = Object.values(this.$store.state.activeStreams);
+      let allClosed = a.every(v => v === false);
+      // If all streams are closed, don't start GPU preview
+      if (state === true && allClosed) {
+        return false;
+      }
+      // If not all streams are closed, don't stop GPU preview
+      if (state === false && !allClosed) {
+        return false;
+      }
+      return this.previewRequest(state);
+    },
+
+    previewRequest: function(state) {
+      // If requesting starting the stream, but this component is inactive, skip
+      if (
+        this.$store.getters.ready == true &&
+        this.$store.state.autoGpuPreview == true
+      ) {
+        var requestUri = null;
+        // Create URI
+        if (state == true) {
+          requestUri = this.startPreviewUri;
+        } else {
+          requestUri = this.stopPreviewUri;
+        }
+
+        // Generate payload if tracking window position
+        var payload = {};
+        if (this.$store.state.trackWindow == true && state == true) {
+          // Recalculate frame dimensions and position
+          this.recalculateSize();
+          // Copy data into payload array
+          payload = {
+            window: [
+              this.displayPosition[0],
+              this.displayPosition[1],
+              this.displaySize[0],
+              this.displaySize[1]
+            ]
+          };
+        }
+
+        // Send preview request
+
+        axios
+          .post(requestUri, payload)
+          .then(() => {})
+          .catch(error => {
+            this.modalError(error); // Let mixin handle error
+          });
+      }
+    }
+  }
+};
+</script>
+
+<style scoped lang="less">
+.stream-display img {
+  height: 100%;
+  text-align: center;
+  object-fit: contain;
+}
+
+.stream-display {
+  width: 100%;
+  height: 100%;
+}
+
+.position-relative {
+  position: relative !important;
+}
+
+.text-center {
+  text-align: center;
+}
+</style>

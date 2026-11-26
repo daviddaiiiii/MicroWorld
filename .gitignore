@@ -1,0 +1,16 @@
+.build/
+*.app/
+*.app.zip
+Workspace/*
+ConversationHistory/*
+State/
+Logs/
+mcp.json
+.codex/config.toml
+__pycache__/
+Verification/
+.DS_Store
+node_modules/
+dist/
+.env
+.env.*

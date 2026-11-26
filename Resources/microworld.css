@@ -1,0 +1,97 @@
+:root {
+  color-scheme: light dark;
+  --mw-ink: #20302c;
+  --mw-muted: #62726b;
+  --mw-panel: #f5f7f4;
+  --mw-line: #d5ded7;
+  --mw-accent: #146b55;
+  --mw-accent-contrast: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mw-ink: #e3eee7;
+    --mw-muted: #aabbb0;
+    --mw-panel: #202825;
+    --mw-line: #35423c;
+    --mw-accent: #7bd5b3;
+    --mw-accent-contrast: #11271f;
+  }
+}
+body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+#switcher-left-container { display: none !important; }
+#container-left { width: 100%; }
+#app .openmhs-root .mhs-toolbar {
+  background: var(--mw-panel);
+  border-bottom-color: var(--mw-line);
+  color: var(--mw-ink);
+  padding-inline: 20px;
+}
+#app .mhs-brand { flex-direction: row; align-items: baseline; gap: 9px; }
+#app .mhs-brand strong { font-size: 16px; letter-spacing: -.02em; }
+#app .mhs-brand span { color: var(--mw-muted); font-size: 12px; }
+#app .mhs-tools > button { border: 1px solid var(--mw-line); }
+#app .mhs-tools > button:hover,
+#app .mhs-tools > button.active { background: color-mix(in srgb, var(--mw-accent) 12%, var(--mw-panel)); }
+#app .mhs-tools > .mw-primary {
+  background: var(--mw-accent);
+  border-color: var(--mw-accent);
+  color: var(--mw-accent-contrast);
+}
+#app .mhs-tools > .mw-primary:hover {
+  background: var(--mw-accent);
+  filter: brightness(1.1);
+}
+#app :is(button, input, select):focus-visible {
+  outline: 2px solid var(--mw-accent);
+  outline-offset: 2px;
+}
+#app .openmhs-settings .settings-card:has(#openmhs-workspace) { display: none; }
+
+#app .studio {
+  background: var(--mw-panel);
+  color: var(--mw-ink);
+}
+#app .studio header {
+  min-height: 54px;
+  gap: 10px;
+  padding: 6px 18px;
+}
+#app .studio .identity strong { font-size: 16px; }
+#app .studio .identity .eyebrow { display: none; }
+#app .studio :is(header, aside, footer, .view-controls, .scan-lock, .delete-dialog > div) {
+  background: var(--mw-panel);
+  border-color: var(--mw-line);
+}
+#app .studio .viewport {
+  background-color: color-mix(in srgb, var(--mw-panel) 94%, var(--mw-ink));
+  background-image: radial-gradient(var(--mw-line) .7px, transparent .7px);
+}
+#app .studio :is(nav, .layer-row.active, button:hover) {
+  background: color-mix(in srgb, var(--mw-ink) 8%, var(--mw-panel));
+}
+#app .studio nav button { min-width: 58px; }
+#app .studio nav button.active {
+  color: var(--mw-accent);
+  background: var(--mw-panel);
+}
+#app .studio :is(.actions > button:last-child, .fov-capture) {
+  background: var(--mw-accent);
+  color: var(--mw-accent-contrast);
+}
+#app .studio :is(.caption, .hint, output, .section-head button) { color: var(--mw-muted); }
+#app .studio :is(.layer-list, .layer-row, .enhance, select, hr) { border-color: var(--mw-line); }
+#app .studio select { background: var(--mw-panel); color: var(--mw-ink); }
+#app .studio input[type="range"] { accent-color: var(--mw-accent); }
+#app .studio .layer-check { color: var(--mw-accent); }
+.mw-open-native {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 100;
+  border: 1px solid #2b6755;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #163f34;
+  color: #fff !important;
+  font: 600 13px system-ui, sans-serif;
+}
