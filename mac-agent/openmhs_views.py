@@ -69,7 +69,7 @@ def seed_lib() -> None:
     readme = root / "README.md"
     if not readme.is_file():
         readme.write_text(
-            "# OpenMHS lib\n\n"
+            "# MicroWorld lib\n\n"
             "Agent-maintained shared knowledge — not tied to one Camera view.\n\n"
             "- `env.md` — Python / conda notes for this Mac\n"
             "- `algorithms/` — classic algorithm wrappers (same calling shape)\n"

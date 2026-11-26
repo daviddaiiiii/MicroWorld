@@ -214,7 +214,7 @@ struct NativeSettings: View {
             Section("Connection and Storage") {
                 LabeledContent("Microscope", value: instrument.api.connection.address.display)
                 LabeledContent("Device ID", value: instrument.api.connection.id)
-                LabeledContent("PC Worker", value: instrument.api.connection.openmhs ? "Bundled · port 18766" : "OpenMHS scan extension unavailable")
+                LabeledContent("PC Worker", value: instrument.api.connection.openmhs ? "Bundled · port 18766" : "MicroWorld scan extension unavailable")
                 LabeledContent("Workspace") {
                     Button("Show in Finder") { NSWorkspace.shared.open(instrument.api.connection.workspace) }
                 }

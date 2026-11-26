@@ -152,7 +152,7 @@ struct AdvancedScanOptions: Codable, Equatable {
         body["detect_empty_fields_and_skip_autofocus"] = skipEmpty && capabilities.skipsEmptyFields
         if mosaic {
             guard grid.x <= 32 && grid.y <= 32 else {
-                throw RuntimeError.message("OpenMHS supports up to 32 images per XY axis.")
+                throw RuntimeError.message("MicroWorld supports up to 32 images per XY axis.")
             }
             body["auto_stride"] = automaticStride
             body["target_overlap"] = 0.3

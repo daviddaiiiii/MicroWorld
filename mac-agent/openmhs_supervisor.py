@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Supervisor for the OpenMHS PC worker.
+"""Supervisor for the MicroWorld PC worker.
 
 Read-only Canvas APIs can serve the microscope over a private network.
 Worker and workspace administration is restricted to local requests.
@@ -906,7 +906,7 @@ def main() -> None:
         except Exception as exc:
             print("worker autostart failed:", exc)
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    print("OpenMHS supervisor on http://{}:{}".format(HOST, PORT))
+    print("MicroWorld supervisor on http://{}:{}".format(HOST, PORT))
     print("  GET  /status /installation   POST /start /stop /workspace /microscope /installation /mosaic/ingest")
     print("  GET  /workspace/ls /mosaic/list /mosaic/{id}/tile|preview|layout|agent")
     print("  POST /mosaic/{id}/refine /mosaic/{id}/agent")

@@ -272,7 +272,7 @@ final class InstrumentStore {
                     let status: AcquisitionStatus = try await api.read(InstrumentAPI.scan + "/hardware")
                     guard !needsUpdatedFirmware || status.advanced_capture == true,
                           !capture.bayer || status.bayer_scan == true else {
-                        throw RuntimeError.message("This option needs the updated OpenMHS scan extension on the Pi.")
+                        throw RuntimeError.message("This option needs the updated MicroWorld scan extension on the Pi.")
                     }
                 }
                 try await prepareMosaicScan(&request.body)

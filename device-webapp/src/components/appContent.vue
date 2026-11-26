@@ -275,7 +275,7 @@ export default {
         },
         {
           id: "openmhs",
-          title: "OpenMHS",
+          title: "MicroWorld",
           icon: "biotech",
           iconURL: "img/openmhs-icon.svg",
           component: openmhsContent

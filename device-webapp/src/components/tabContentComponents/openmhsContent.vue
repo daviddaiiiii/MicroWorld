@@ -14,7 +14,7 @@
   >
     <header v-if="!studioSession" class="mhs-toolbar" @pointerdown.stop>
       <div class="mhs-brand">
-        <strong>OpenMHS</strong><span>Camera · Canvas</span>
+        <strong>MicroWorld</strong><span>Camera · Canvas</span>
       </div>
       <div class="mhs-tools">
         <button title="ROI tools" @click.stop="openRoiDock">

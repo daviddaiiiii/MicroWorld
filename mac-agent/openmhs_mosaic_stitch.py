@@ -1,4 +1,4 @@
-"""OpenMHS mosaic stitch/refine (ported from Pi scan-mosaic, no LabThings)."""
+"""MicroWorld mosaic stitch/refine (ported from Pi scan-mosaic, no LabThings)."""
 from __future__ import annotations
 
 import logging

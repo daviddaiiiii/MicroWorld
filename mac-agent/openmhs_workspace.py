@@ -1,4 +1,4 @@
-"""Sandboxed local workspace for OpenMHS Mac agent (Cursor-like folder).
+"""Sandboxed local workspace for MicroWorld Mac agent (Cursor-like folder).
 
 All agent file tools resolve paths under OPENMHS_WORKSPACE only.
 Default: ~/OpenMHS-Workspace with views/, lib/, notes/, captures/, runs/.

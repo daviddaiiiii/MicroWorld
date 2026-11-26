@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OpenMHS Visual Prompt + Agent Job MCP server.
+"""MicroWorld Visual Prompt + Agent Job MCP server.
 
 Analysis / job path (always available):
   - get_latest_visual_prompt / get_visual_prompt / list_visual_prompts
@@ -172,7 +172,7 @@ def tool_list() -> list:
         },
         {
             "name": "list_pending_agent_jobs",
-            "description": "List queued OpenMHS agent jobs waiting for Cursor/Codex/API workers.",
+            "description": "List queued MicroWorld agent jobs waiting for Cursor/Codex/API workers.",
             "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         },
         {
@@ -213,7 +213,7 @@ def tool_list() -> list:
         },
         {
             "name": "submit_agent_job_result",
-            "description": "Write analysis markdown + UI annotations back to the microscope so the OpenMHS web UI can render them. Always call this when finishing a claimed job.",
+            "description": "Write analysis markdown + UI annotations back to the microscope so the MicroWorld web UI can render them. Always call this when finishing a claimed job.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -424,7 +424,7 @@ def handle(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "openmhs-visual-prompts", "version": "1.1.0"},
+                "serverInfo": {"name": "microworld-visual-prompts", "version": "1.1.0"},
             }
         )
     if method == "notifications/initialized":

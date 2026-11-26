@@ -1,4 +1,4 @@
-"""OpenMHS Visual Prompt storage for OpenFlexure Microscope Server.
+"""MicroWorld Visual Prompt storage for OpenFlexure Microscope Server.
 
 Install on the Pi:
   sudo cp org_openmhs_visual_prompts.py \\
@@ -8,7 +8,7 @@ Install on the Pi:
 
 Authority for visual prompts and agent jobs lives on the microscope host.
 Cursor/Codex (or any HTTP client) claim jobs via this API / MCP, drive the
-microscope, then POST results for the OpenMHS UI to poll and render.
+microscope, then POST results for the MicroWorld UI to poll and render.
 """
 
 from __future__ import annotations
@@ -882,7 +882,7 @@ class VisualPromptStore(object):
         has_source = any(r.get("role") == "source" for r in rois_norm)
         surface = str(payload.get("surface") or "live")
         prompt_text = (
-            "OpenMHS visual prompt `{id}` on the microscope ({surface}). "
+            "MicroWorld visual prompt `{id}` on the microscope ({surface}). "
             "Primary ROI image: use MCP get_latest_visual_prompt or GET .../latest/roi. "
             "Full frame: GET .../latest/frame. {help}"
         ).format(id=prompt_id, surface=surface, help=help_text)
@@ -893,7 +893,7 @@ class VisualPromptStore(object):
 
         markdown = "\n".join(
             [
-                "# OpenMHS Visual Prompt",
+                "# MicroWorld Visual Prompt",
                 "",
                 prompt_text,
                 "",
@@ -926,7 +926,7 @@ class VisualPromptStore(object):
                 "Present results in the native Codex conversation. No worker job was queued.\n"
             )
         if payload.get("selection_cleared"):
-            markdown = "# OpenMHS visual context\n\nThe user cleared the selection. No region is currently selected. The frame is context only; do not reuse an older ROI.\n"
+            markdown = "# MicroWorld visual context\n\nThe user cleared the selection. No region is currently selected. The frame is context only; do not reuse an older ROI.\n"
         prompt_path.write_text(markdown, encoding="utf-8")
 
         manifest = {

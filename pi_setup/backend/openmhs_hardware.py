@@ -1,8 +1,8 @@
-"""Process-wide hardware arbitration for OpenMHS.
+"""Process-wide hardware arbitration for MicroWorld.
 
 OpenFlexure exposes several independent action entry points.  Its normal
 locks protect individual components, but they do not express the stronger
-invariant OpenMHS needs: a stage move, autofocus, calibration, retake, or
+invariant MicroWorld needs: a stage move, autofocus, calibration, retake, or
 scan must own the microscope for the complete operation.
 
 The gate is deliberately small and in-process.  The JSON state is only a

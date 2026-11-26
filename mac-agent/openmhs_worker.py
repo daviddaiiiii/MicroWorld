@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OpenMHS PC worker: synchronize microscope scans and Canvas data.
+"""MicroWorld PC worker: synchronize microscope scans and Canvas data.
 
 Usage:
   # connection settings in mac-agent/.env (see .env.example)
@@ -426,7 +426,7 @@ def loop() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    LOG.info("OpenMHS PC scan/Canvas worker started → %s (poll=%.1fs)", MICROSCOPE_URL, POLL_S)
+    LOG.info("MicroWorld PC scan/Canvas worker started → %s (poll=%.1fs)", MICROSCOPE_URL, POLL_S)
     threading.Thread(target=heartbeat_loop, name="openmhs-hb", daemon=True).start()
     report_heartbeat(force=True)
     while True:

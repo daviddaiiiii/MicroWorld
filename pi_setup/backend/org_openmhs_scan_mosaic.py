@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OpenMHS acquisition and live-observation wrapper for OpenFlexure.
+"""MicroWorld acquisition and live-observation wrapper for OpenFlexure.
 
 The Pi is the hardware boundary, not the high-quality image-processing host.
 It wraps ``org.openflexure.scan`` to serialize hardware mutations, capture
@@ -178,7 +178,7 @@ CAL_PX_PER_STEP = (0.1437, 0.1344)
 CALIB_PROBE_STEPS = 600
 STRIDE_MIN = 400
 STRIDE_MAX = 4500
-# OpenMHS Canvas scans follow the stock OpenFlexure geometry by default:
+# MicroWorld Canvas scans follow the stock OpenFlexure geometry by default:
 # explicit fixed stride, with no probe movement before acquisition.
 AUTO_STRIDE_DEFAULT = False
 NAME_PAT = re.compile(
@@ -1898,7 +1898,7 @@ def build_exif_bytes(capture_id, name, tags, annotations, dataset=None, thumb_im
         },
     }
     zeroth = {
-        piexif.ImageIFD.Software: "OpenMHS scan-mosaic".encode("utf-8"),
+        piexif.ImageIFD.Software: "MicroWorld scan-mosaic".encode("utf-8"),
         piexif.ImageIFD.ImageDescription: b"live mosaic",
     }
     exif = {
@@ -3429,7 +3429,7 @@ class ScanMosaicExtension(BaseExtension):
 
         autofocus_dz = int(args.get("autofocus_dz") or 0)
         # OpenFlexure's stock fast autofocus is the default. The slower
-        # OpenMHS quality survey remains an explicit opt-in only.
+        # MicroWorld quality survey remains an explicit opt-in only.
         fast_autofocus = bool(args.get("fast_autofocus", True))
         use_video_port = bool(args.get("use_video_port", True))
         namemode = args.get("namemode") or "coordinates"
@@ -4966,7 +4966,7 @@ class ScanMosaicExtension(BaseExtension):
                 st.focus_attempts = 0
 
         # The OpenFlexure microscope/stage locks are still useful for
-        # component safety, but this lease is the OpenMHS scheduling
+        # component safety, but this lease is the MicroWorld scheduling
         # authority.  It spans the complete scan, including all moves,
         # autofocus passes, capture, and finalisation.
         self.ensure_hardware_hooks()
@@ -5201,7 +5201,7 @@ class PreviewUiView(View):
 <html lang="zh-CN"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>OpenMHS Live Stitch Preview</title>
+<title>MicroWorld Live Stitch Preview</title>
 <style>
  body{margin:0;font-family:system-ui,sans-serif;background:#0f1419;color:#e8eef4}
  header{padding:12px 16px;border-bottom:1px solid #243040}
@@ -5623,7 +5623,7 @@ class RecaptureTileView(ActionView):
                 report = {}
                 if not capture_only and body.get("autofocus", True):
                     # FOV dragging is interactive: use OpenFlexure's stock fast AF,
-                    # not OpenMHS quality_autofocus (which performs a slower Z survey).
+                    # not MicroWorld quality_autofocus (which performs a slower Z survey).
                     try:
                         scan_ext = find_extension("org.openflexure.scan")
                         autofocus = scan_ext.get_autofocus_function(
@@ -5735,7 +5735,7 @@ class TileScanAPI(ActionView):
             else:
                 abort(404)
 
-        logging.info("Running OpenMHS mosaic tile scan...")
+        logging.info("Running MicroWorld mosaic tile scan...")
         try:
             self.extension.patch_stock_scan()
         except Exception:

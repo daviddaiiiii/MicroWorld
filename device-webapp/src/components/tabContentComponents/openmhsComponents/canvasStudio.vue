@@ -13,7 +13,7 @@
   >
     <header>
       <div class="identity">
-        <span class="eyebrow">OpenMHS</span><strong>Canvas</strong>
+        <span class="eyebrow">MicroWorld</span><strong>Canvas</strong>
       </div>
       <nav aria-label="Canvas view">
         <button

@@ -30,7 +30,7 @@
             Features
           </tabIcon>
         </li>
-        <li class="uk-nav-header">OpenMHS</li>
+        <li class="uk-nav-header">MicroWorld</li>
         <li>
           <tabIcon
             id="settings-openmhs-icon"

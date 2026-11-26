@@ -4,8 +4,8 @@ set -Eeuo pipefail
 bundle="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 extension_dir="${OPENFLEXURE_EXTENSION_DIR:-/var/openflexure/extensions/microscope_extensions}"
 service="${OPENFLEXURE_SERVICE:-openflexure-microscope-server}"
-local_url="${OPENMHS_LOCAL_URL:-http://127.0.0.1:5000}"
-backup_parent="${OPENMHS_BACKUP_DIR:-/var/openflexure}"
+local_url="${MICROWORLD_PI_URL:-${OPENMHS_LOCAL_URL:-http://127.0.0.1:5000}}"
+backup_parent="${MICROWORLD_PI_BACKUP_DIR:-${OPENMHS_BACKUP_DIR:-/var/openflexure}}"
 scan_api="${local_url%/}/api/v2/extensions/org.openmhs.scan-mosaic"
 backend_files=(
     org_openmhs_scan_mosaic.py

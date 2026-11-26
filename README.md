@@ -4,7 +4,7 @@
 
 Find a microscope, move and focus the stage, capture a tiled scan, then mark the exact region you want to revisit or analyze. MicroWorld brings the live camera, stage controls and Slide viewer into one app. The Mac runs the bundled PC Worker for Canvas storage, registration and fusion. An optional MCP connection lets Codex start a scan and work with the ROI you marked.
 
-[Download Mac and Pi packages](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.0) · [Install and connect](#install-and-connect) · [Use with Codex](#use-with-codex) · [简体中文](README.zh-CN.md)
+[Download Mac and Pi packages](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.1) · [Install and connect](#install-and-connect) · [Use with Codex](#use-with-codex) · [简体中文](README.zh-CN.md)
 
 ![MicroWorld Canvas showing a four-tile Slide, a marked rectangular ROI, and the Layers inspector](docs/images/canvas-roi.jpg)
 
@@ -16,20 +16,20 @@ Find a microscope, move and focus the stage, capture a tiled scan, then mark the
 
 ### 1. Install on the Pi
 
-Get **MicroWorld-0.1.0-Pi.tar.gz** and **MicroWorld-0.1.0-Pi.tar.gz.sha256** from the [public release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.0). Download directly to the Pi or copy the two files from the Mac. With the microscope idle, run on the Pi:
+Get **MicroWorld-0.1.1-Pi.tar.gz** and **MicroWorld-0.1.1-Pi.tar.gz.sha256** from the [public release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.1). Download directly to the Pi or copy the two files from the Mac. With the microscope idle, run on the Pi:
 
 ```bash
-sha256sum -c MicroWorld-0.1.0-Pi.tar.gz.sha256
-tar -xzf MicroWorld-0.1.0-Pi.tar.gz
-cd MicroWorld-0.1.0-Pi
-sudo ./install-openmhs-pi.sh
+sha256sum -c MicroWorld-0.1.1-Pi.tar.gz.sha256
+tar -xzf MicroWorld-0.1.1-Pi.tar.gz
+cd MicroWorld-0.1.1-Pi
+sudo ./install-microworld-pi.sh
 ```
 
 The installer adds the Canvas scan and visual-prompt extensions, backs up any previous versions and restarts OpenFlexure. It keeps the Pi's existing web UI and captures. The [Pi install guide](pi_setup/README.md) covers API checks, custom installations and rollback.
 
 ### 2. Install on the Mac
 
-1. Download [MicroWorld-0.1.0-macOS-arm64.zip](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.0/MicroWorld-0.1.0-macOS-arm64.zip). Extract the entire folder to a writable location such as `~/Documents/MicroWorld`. Keep the launchers and `script/` beside `MicroWorld.app`.
+1. Download [MicroWorld-0.1.1-macOS-arm64.zip](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.1/MicroWorld-0.1.1-macOS-arm64.zip). Extract the entire folder to a writable location such as `~/Documents/MicroWorld`. Keep the launchers and `script/` beside `MicroWorld.app`.
 2. Open **MicroWorld.app** and allow **Local Network** access. This preview uses ad-hoc signing. If macOS blocks the first launch, follow [Apple's instructions for approving an app](https://support.apple.com/en-us/102445).
 3. Select the Pi in **Microscopes** and click **Connect**. If discovery misses it, use **Add by Address** and enter its hostname or IP with port `5000`, for example `microscope.local:5000`. MicroWorld starts its bundled PC Worker when it connects to a Pi with the extensions. For Canvas over LAN or VPN, the Pi must be able to reach the Mac's TCP port `18766` on the private network.
 
@@ -57,7 +57,7 @@ Switch between the individual **Tiles** and the registered **Slide**. Inspect an
 
 ## Use with Codex
 
-1. Connect an OpenMHS microscope in MicroWorld. From the app menu, choose **Open Codex** if the Codex CLI is installed, or open the MicroWorld folder in a Codex client that loads project MCP settings.
+1. Connect to a microscope with the MicroWorld Pi extensions installed. From the app menu, choose **Open Codex** if the Codex CLI is installed, or open the MicroWorld folder in a Codex client that loads project MCP settings.
 2. Ask Codex to **“Scan 2 × 2 and open the refined Slide.”** The MCP actions are `microworld_scan_2x2` and `microworld_scan_status`. Open the returned `microworld://slide/…` link in the app, or open the HTTP viewer link and choose **Open in MicroWorld**.
 3. Choose **Mark ROI** in the Slide, draw a target and wait for the selection confirmation. Return to the same conversation and ask Codex to inspect or quantify the region. The MCP action `microworld_get_slide_roi` returns the crop and its geometry.
 
@@ -85,4 +85,4 @@ cd MicroWorld
 open MicroWorld.app
 ```
 
-The build packages the SwiftUI app, Python runtime and PC Worker, MCP server and browser Slide viewer. To package the Pi extensions from this checkout, run `./script/build_pi_release.sh 0.1.0`. For source attribution see [NOTICE.md](NOTICE.md). The desktop layout draws on [openUC2 ImSwitch](https://github.com/openUC2/ImSwitch) and [Apple's macOS interface guidelines](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos).
+The build packages the SwiftUI app, Python runtime and PC Worker, MCP server and browser Slide viewer. To package the Pi extensions from this checkout, run `./script/build_pi_release.sh 0.1.1`. For source attribution see [NOTICE.md](NOTICE.md). The desktop layout draws on [openUC2 ImSwitch](https://github.com/openUC2/ImSwitch) and [Apple's macOS interface guidelines](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos).

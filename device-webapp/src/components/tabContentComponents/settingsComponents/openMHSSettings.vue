@@ -1,8 +1,8 @@
 <template>
-  <section class="openmhs-settings" aria-label="OpenMHS settings">
+  <section class="openmhs-settings" aria-label="MicroWorld settings">
     <header class="section-heading">
       <div>
-        <p class="eyebrow">OpenMHS</p>
+        <p class="eyebrow">MicroWorld</p>
         <h2>Connections &amp; storage</h2>
         <p class="subtitle">
           The microscope acquires images. The PC worker stores canvases and
@@ -105,7 +105,7 @@
         <p>
           The browser cannot install software by itself. Download the
           <a
-            href="https://github.com/daviddaiiiii/OpenMHS#quick-start"
+            href="https://github.com/daviddaiiiii/MicroWorld#install-and-connect"
             target="_blank"
             rel="noopener noreferrer"
             >PC setup guide</a
@@ -124,7 +124,7 @@
           v-model.trim="installationPath"
           class="uk-input"
           type="text"
-          placeholder="~/OpenMHS-PC"
+          placeholder="~/Documents/MicroWorld"
           :disabled="!localPc || busyAction !== '' || installationBusy"
         />
         <p class="helper">
@@ -193,7 +193,7 @@
             v-model.trim="workspacePath"
             class="uk-input"
             type="text"
-            placeholder="~/OpenMHS-Workspace"
+            placeholder="~/Documents/MicroWorld/Workspace"
             :disabled="!localPc || busyAction !== ''"
           />
           <p class="helper">

@@ -76,7 +76,7 @@ def slide_links(pinned, sid):
 def start_scan(pinned):
     base = pinned["url"]
     if not pinned.get("openmhs") or not read_json(LOCAL + "/desktop/status").get("worker_running"):
-        raise RuntimeError("Connect an OpenMHS microscope with a running PC Worker first.")
+        raise RuntimeError("Connect to a microscope with the MicroWorld Pi extensions and a running PC Worker first.")
     if read_json(base + SCAN + "/hardware").get("busy"):
         raise RuntimeError("The microscope is busy.")
     previous = read_json(base + SCAN + "/live_details")

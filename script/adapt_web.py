@@ -1,4 +1,4 @@
-"""Apply desktop-only presentation changes to a staged OpenMHS web checkout."""
+"""Apply desktop-only presentation changes to a staged browser viewer."""
 
 from pathlib import Path
 import shutil
@@ -36,7 +36,7 @@ change(tabs, '''    // A global signal listener to switch tab''', '''    window.
     // A global signal listener to switch tab''')
 
 observation = src / "components/tabContentComponents/openmhsContent.vue"
-change(observation, "<strong>OpenMHS</strong><span>Camera · Canvas</span>",
+change(observation, "<strong>MicroWorld</strong><span>Camera · Canvas</span>",
        "<strong>Live view</strong><span>Camera</span>")
 change(observation, 'title="Stage controls"', 'title="Stage controls and coordinates"')
 change(observation, "<span>XYZ</span>", "<span>Stage</span>")

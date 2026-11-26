@@ -1582,7 +1582,7 @@ export default {
         const st = await this.probeLocalSupervisor();
         if (!st) {
           throw new Error(
-            "Local supervisor is down. Click Repair (requires login autostart), or use the desktop OpenMHS PC Worker launcher."
+            "The PC Worker is unavailable. Reconnect to the microscope in MicroWorld to restart it."
           );
         }
         const { data } = await axios.post(
@@ -2142,7 +2142,7 @@ export default {
           if (!st) {
             this.localStartError = true;
             this.localStartHint =
-              "Could not start local services. Run mac-agent autostart installer or the desktop OpenMHS PC Worker launcher.";
+              "Could not start the PC Worker. Reconnect in MicroWorld and try again.";
             return;
           }
         }
