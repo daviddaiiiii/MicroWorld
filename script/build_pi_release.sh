@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+version="${1:-0.1.0}"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Expected a version such as 0.1.0." >&2; exit 2; }
+name="MicroWorld-$version-Pi"
+output="$root/.build/github-release"
+stage="$(mktemp -d)"
+trap 'rm -rf "$stage"' EXIT
+bundle="$stage/$name"
+mkdir -p "$bundle/backend" "$output"
+cp "$root/pi_setup/README.md" "$root/LICENSE" "$root/NOTICE.md" "$bundle/"
+install -m 0755 "$root/pi_setup/install-openmhs-pi.sh" "$bundle/install-openmhs-pi.sh"
+for file in org_openmhs_scan_mosaic.py org_openmhs_visual_prompts.py openmhs_scan_plan.py openmhs_hardware.py; do
+    cp "$root/pi_setup/backend/$file" "$bundle/backend/"
+done
+cp "$root/mac-agent/openmhs_registration.py" "$bundle/backend/"
+COPYFILE_DISABLE=1 tar -C "$stage" -czf "$output/$name.tar.gz" "$name"
+(cd "$output" && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+echo "$output/$name.tar.gz"
