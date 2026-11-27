@@ -89,12 +89,10 @@ final class InstrumentAPI {
     static let prompts = "/api/v2/extensions/org.microworld.visual-prompts"
     static let position = "/api/v2/instrument/state/stage/position"
     let connection: Connection
-    let deviceURL: URL
     let session: URLSession
 
     init(_ connection: Connection) {
         self.connection = connection
-        deviceURL = URL(string: connection.address.url)!
         let config = URLSessionConfiguration.ephemeral
         config.connectionProxyDictionary = [:]
         config.timeoutIntervalForRequest = 15
@@ -104,11 +102,8 @@ final class InstrumentAPI {
     deinit { session.invalidateAndCancel() }
 
     func devicePath(_ path: String) -> URL {
-        let prefix = "/api/v2/extensions/org.microworld."
-        let route = path.hasPrefix(prefix)
-            ? "/api/v2/extensions/\(connection.apiNamespace)." + String(path.dropFirst(prefix.count))
-            : path
-        return URL(string: route, relativeTo: deviceURL)!.absoluteURL
+        // The local service verifies the device and attaches the Pi's connection token.
+        localPath(path)
     }
 
     func localPath(_ path: String) -> URL {
@@ -117,6 +112,9 @@ final class InstrumentAPI {
 
     func bytes(_ url: URL, method: String = "GET", body: [String: Any]? = nil,
                timeout: TimeInterval = 15) async throws -> Data {
+        if method != "GET", method != "HEAD" {
+            try await verifyLocalSession()
+        }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
         request.httpMethod = method
         if let body {
@@ -155,13 +153,16 @@ final class InstrumentAPI {
         return try await bytes(devicePath(path), method: method, body: body, timeout: timeout)
     }
 
-    func writeLocal(_ path: String, body: [String: Any], timeout: TimeInterval = 45) async throws -> Data {
+    private func verifyLocalSession() async throws {
         struct LocalSession: Decodable { let device_id: String }
-        let token: LocalSession = try await read("/desktop/session", local: true)
-        guard token.device_id == connection.id else {
-            throw RuntimeError.message("The MicroWorld workspace changed. Reopen the Canvas on the connected microscope.")
+        let active: LocalSession = try await read("/desktop/session", local: true)
+        guard active.device_id == connection.id else {
+            throw RuntimeError.message("The connected microscope changed. Reconnect before sending controls.")
         }
-        return try await bytes(localPath(path), method: "POST", body: body, timeout: timeout)
+    }
+
+    func writeLocal(_ path: String, body: [String: Any], timeout: TimeInterval = 45) async throws -> Data {
+        try await bytes(localPath(path), method: "POST", body: body, timeout: timeout)
     }
 
     func run(_ path: String, body: [String: Any], timeout: TimeInterval = 120,

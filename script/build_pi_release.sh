@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-version="${1:-0.1.5}"
+version="${1:-0.1.6}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Expected a version such as 0.1.2." >&2; exit 2; }
 name="MicroWorld-$version-Pi"
 output="$root/.build/github-release"

@@ -6,7 +6,7 @@
 
 Find a microscope, move and focus the stage, capture a tiled scan, then mark the exact region you want to revisit or analyze. MicroWorld brings the live camera, stage controls and Slide viewer into one app. The computer runs the bundled PC Worker for Canvas storage, registration and fusion. An optional MCP connection lets Codex start a scan and work with the ROI you marked.
 
-[Download macOS, Ubuntu and Pi packages](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.5) · [Install and connect](#install-and-connect) · [Use with Codex](#use-with-codex) · [简体中文](README.zh-CN.md)
+[Download macOS, Ubuntu and Pi packages](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.6) · [Install and connect](#install-and-connect) · [Use with Codex](#use-with-codex) · [简体中文](README.zh-CN.md)
 
 ![MicroWorld Canvas showing a four-tile Slide, a marked rectangular ROI, and the Layers inspector](docs/images/canvas-roi.jpg)
 
@@ -18,12 +18,12 @@ Find a microscope, move and focus the stage, capture a tiled scan, then mark the
 
 ### 1. Install on the Pi
 
-Get **MicroWorld-0.1.5-Pi.tar.gz** and **MicroWorld-0.1.5-Pi.tar.gz.sha256** from the [public release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.5). Download directly to the Pi or copy the two files from your computer. With the microscope idle, run on the Pi:
+Get **MicroWorld-0.1.6-Pi.tar.gz** and **MicroWorld-0.1.6-Pi.tar.gz.sha256** from the [public release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.6). Download directly to the Pi or copy the two files from your computer. With the microscope idle, run on the Pi:
 
 ```bash
-sha256sum -c MicroWorld-0.1.5-Pi.tar.gz.sha256
-tar -xzf MicroWorld-0.1.5-Pi.tar.gz
-cd MicroWorld-0.1.5-Pi
+sha256sum -c MicroWorld-0.1.6-Pi.tar.gz.sha256
+tar -xzf MicroWorld-0.1.6-Pi.tar.gz
+cd MicroWorld-0.1.6-Pi
 sudo ./install-microworld-pi.sh
 ```
 
@@ -90,6 +90,6 @@ cd MicroWorld
 open MicroWorld.app
 ```
 
-The macOS build packages the SwiftUI app, Python runtime and PC Worker, MCP server and browser Slide viewer. To package the Pi extensions from this checkout, run `./script/build_pi_release.sh 0.1.5`. For source attribution see [NOTICE.md](NOTICE.md). The desktop layout draws on [openUC2 ImSwitch](https://github.com/openUC2/ImSwitch) and [Apple's macOS interface guidelines](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos).
+The macOS build packages the SwiftUI app, Python runtime and PC Worker, MCP server and browser Slide viewer. To package the Pi extensions from this checkout, run `./script/build_pi_release.sh 0.1.6`. For source attribution see [NOTICE.md](NOTICE.md). The desktop layout draws on [openUC2 ImSwitch](https://github.com/openUC2/ImSwitch) and [Apple's macOS interface guidelines](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos).
 
 For the Ubuntu build, see [Build from source on Linux](docs/install-linux.md#build-from-source).

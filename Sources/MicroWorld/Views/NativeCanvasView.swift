@@ -66,17 +66,22 @@ struct NativeCanvasView: View {
             Divider()
             HStack {
                 if canvas.live || canvas.busy { ProgressView().controlSize(.small) }
-                Text(status).lineLimit(1)
+                Text(status)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .help(status)
                     .foregroundStyle(canvas.error.isEmpty ? Color.secondary : Color.orange)
                 Spacer()
                 if let doc = canvas.document {
                     Text("\(doc.tiles.count) tiles").monospacedDigit().foregroundStyle(.secondary)
                 }
             }
-            .font(.caption)
+            .font(.callout)
             .padding(.horizontal, 12)
-            .frame(height: 28)
+            .padding(.vertical, 4)
+            .frame(minHeight: 34)
         }
+        .font(.body)
         .task { await canvas.watch() }
         .task(id: canvas.zoom > 1 ? canvas.document?.revision : nil) { await canvas.loadPyramid() }
         .fileImporter(isPresented: $importImage, allowedContentTypes: [.image]) { result in
@@ -271,6 +276,7 @@ struct NativeCanvasView: View {
                             Button(tile.title) { canvas.selected = tile.id }
                                 .foregroundStyle(canvas.selected == tile.id ? Color.accentColor : .primary)
                                 .lineLimit(1)
+                                .help(tile.title)
                             Spacer(minLength: 0)
                             Menu {
                                 Button("Move Up") { move(tile, by: 1) }
@@ -408,7 +414,7 @@ private struct AdjustmentView: View {
                 Spacer()
                 Text(value.wrappedValue, format: .number.precision(.fractionLength(2))).monospacedDigit()
             }
-            .font(.caption)
+            .font(.callout)
             Slider(value: value, in: range, step: 0.01).accessibilityLabel(label)
         }
     }

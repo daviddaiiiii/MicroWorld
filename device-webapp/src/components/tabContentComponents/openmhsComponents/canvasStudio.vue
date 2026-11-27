@@ -115,7 +115,8 @@
         <div
           class="world"
           :style="{
-            transform: `translate(${view.x}px,${view.y}px) scale(${view.scale})`
+            transform: `translate(${view.x}px,${view.y}px) scale(${view.scale})`,
+            "--canvas-counter-scale": 1 / view.scale
           }"
         >
           <template v-if="doc">
@@ -175,7 +176,7 @@
                   alt="Adjusted tile (original preserved)"
                 />
                 <div v-else class="tile-placeholder">Tile available</div>
-                <span
+                <span class="tile-label"
                   >{{
                     t.asset
                       ? t.stage_position
@@ -1702,6 +1703,10 @@ fieldset {
   border-radius: 16px;
 }
 .studio {
+  --canvas-text: 14px;
+  --canvas-secondary-text: 13px;
+  --canvas-section-title: 15px;
+  --canvas-title: 17px;
   position: absolute;
   inset: 0;
   z-index: 90;
@@ -1709,7 +1714,7 @@ fieldset {
   color: #242426;
   display: flex;
   flex-direction: column;
-  font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: var(--canvas-text) / 1.45 system-ui, sans-serif;
   text-align: left;
 }
 header {
@@ -1729,12 +1734,12 @@ header {
   gap: 2px;
 }
 .identity strong {
-  font-size: 18px;
+  font-size: var(--canvas-title);
   font-weight: 600;
 }
 .eyebrow {
-  font-size: 9px;
-  letter-spacing: 1.6px;
+  font-size: var(--canvas-secondary-text);
+  letter-spacing: 0.02em;
   color: #808086;
 }
 button {
@@ -1840,7 +1845,7 @@ nav button.active {
   place-items: center;
   background: #dfe3ea;
   color: #6d7480;
-  font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: var(--canvas-secondary-text);
 }
 .tile {
   outline: 1px solid #ffffff90;
@@ -1850,14 +1855,17 @@ nav button.active {
 .tile.selected {
   outline: 3px solid #3678ed;
 }
-.tile span {
+.tile-label {
   position: absolute;
-  left: 6px;
-  top: 6px;
+  left: 0;
+  top: 0;
+  transform: scale(var(--canvas-counter-scale, 1)) translate(6px, 6px);
+  transform-origin: top left;
+  white-space: nowrap;
   background: #ffffffdf;
   border-radius: 4px;
   padding: 3px 6px;
-  font-size: 11px;
+  font-size: var(--canvas-secondary-text);
   pointer-events: none;
 }
 .view-controls {
@@ -1879,7 +1887,7 @@ nav button.active {
   position: absolute;
   bottom: 35px;
   right: 24px;
-  font-size: 11px;
+  font-size: var(--canvas-secondary-text);
   color: #74747b;
   pointer-events: none;
 }
@@ -1898,7 +1906,7 @@ aside {
   overflow-y: auto;
 }
 h3 {
-  font-size: 13px;
+  font-size: var(--canvas-section-title);
   font-weight: 600;
   margin: 0 0 12px;
 }
@@ -1912,18 +1920,18 @@ h3 {
 }
 .section-head button {
   color: #6a6a73;
-  font-size: 12px;
+  font-size: var(--canvas-secondary-text);
 }
 .caption {
-  font-size: 11px;
+  font-size: var(--canvas-secondary-text);
   line-height: 1.6;
   color: #777780;
   margin: 8px 0 24px;
 }
 label {
   display: block;
-  margin: 22px 0;
-  font-size: 12px;
+  margin: 18px 0;
+  font-size: var(--canvas-text);
 }
 output {
   float: right;
@@ -1972,7 +1980,7 @@ footer {
   box-sizing: border-box;
   background: #fff;
   border-top: 1px solid #e5e5e7;
-  font-size: 11px;
+  font-size: var(--canvas-secondary-text);
   color: #797981;
 }
 .error {
@@ -2016,9 +2024,6 @@ footer {
   .eyebrow {
     display: none;
   }
-  .identity strong {
-    font-size: 15px;
-  }
   .actions {
     gap: 0;
   }
@@ -2033,10 +2038,7 @@ footer {
     display: none;
   }
   footer {
-    padding: 0 12px;
-  }
-  footer span:last-child {
-    display: none;
+    padding: 5px 12px;
   }
 }
 @media (max-width: 650px) {

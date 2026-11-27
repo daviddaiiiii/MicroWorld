@@ -56,7 +56,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-se
   gap: 10px;
   padding: 6px 18px;
 }
-#app .studio .identity strong { font-size: 16px; }
 #app .studio .identity .eyebrow { display: none; }
 #app .studio :is(header, aside, footer, .view-controls, .scan-lock, .delete-dialog > div) {
   background: var(--mw-panel);
@@ -78,7 +77,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-se
   background: var(--mw-accent);
   color: var(--mw-accent-contrast);
 }
-#app .studio :is(.caption, .hint, output, .section-head button) { color: var(--mw-muted); }
+#app .studio :is(footer, .caption, .hint, output, .section-head button) { color: var(--mw-muted); }
 #app .studio :is(.layer-list, .layer-row, .enhance, select, hr) { border-color: var(--mw-line); }
 #app .studio select { background: var(--mw-panel); color: var(--mw-ink); }
 #app .studio input[type="range"] { accent-color: var(--mw-accent); }
