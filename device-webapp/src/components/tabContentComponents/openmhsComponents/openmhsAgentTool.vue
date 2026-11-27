@@ -2227,7 +2227,7 @@ export default {
           if (!this.connected && macOk) {
             this.localStartError = true;
             this.localStartHint =
-              "Mac is fine, microscope still offline — hard-refresh; if it persists, restart the Pi microscope service.";
+              "The PC Worker is connected. The microscope is still offline. Refresh the page and restart the microscope service if it stays offline.";
             return;
           }
         }

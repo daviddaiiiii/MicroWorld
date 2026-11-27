@@ -79,7 +79,7 @@ struct NativeCapture: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(!instrument.canControl)
                         if mode == .image {
-                            Button("Save Live Frame to Mac") { Task { await instrument.takeSnapshot() } }
+                            Button("Save Live Frame to This Computer") { Task { await instrument.takeSnapshot() } }
                                 .disabled(instrument.camera.frame == nil || instrument.busy)
                         }
                     }

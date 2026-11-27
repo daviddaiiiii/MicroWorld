@@ -179,7 +179,7 @@ def serve(args):
             path = urlsplit(self.path).path
             if path == "/desktop/config.js":
                 payload = json.dumps({"microscopeURL": base, "supervisorURL": LOCAL,
-                                      "apiNamespace": namespace})
+                                      "apiNamespace": namespace, "localWorker": start_local_worker})
                 self._bytes(200, f"window.__MICROWORLD__ = {payload};".encode(), "text/javascript", "no-store")
                 return True
             if path == "/desktop/status":

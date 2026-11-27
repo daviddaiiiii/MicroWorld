@@ -46,6 +46,8 @@ def number(value, low, high, step=1, digits=0):
     field.set_value(value)
     field.set_numeric(True)
     field.set_width_chars(7)
+    field.set_alignment(1)
+    field.get_style_context().add_class("numeric")
     return field
 
 
@@ -73,6 +75,7 @@ def section(container, heading):
     frame = Gtk.Frame()
     content = column()
     content.set_border_width(12)
+    content.field_widths = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL, ignore_hidden=True)
     pack(content, label(heading, True))
     frame.add(content)
     pack(container, frame)
@@ -82,8 +85,15 @@ def section(container, heading):
 def field(container, name, widget):
     row = Gtk.Box(spacing=10)
     heading = pack(row, label(name), True)
+    heading.set_valign(Gtk.Align.CENTER)
     heading.set_mnemonic_widget(widget)
     widget.get_accessible().set_name(name)
+    widget.set_valign(Gtk.Align.CENTER)
+    if isinstance(widget, Gtk.Label):
+        widget.set_xalign(1)
+        widget.set_justify(Gtk.Justification.RIGHT)
+    else:
+        container.field_widths.add_widget(widget)
     row.pack_end(widget, False, False, 0)
     pack(container, row)
     return widget
@@ -173,12 +183,13 @@ class Panels:
             new_value = [position[axis] for axis in "xyz"]
             for widget, value in zip(self.position_fields, new_value):
                 refresh_text(widget, f"{value:,}")
-            refresh_text(self.position, "")
+            self.position.hide()
             if not self.initial_target:
                 self.use_current()
                 self.initial_target = True
         elif not online:
             refresh_text(self.position, "Position unavailable")
+            self.position.show()
             for widget in self.position_fields:
                 refresh_text(widget, "—")
         refresh_text(self.scope, "Live" if self.app.camera_live else
@@ -274,6 +285,7 @@ class Panels:
         for value in self.position_fields:
             value.get_style_context().add_class("numeric")
         self.position = pack(coords, caption("Position unavailable"))
+        self.position.set_no_show_all(True)
         group = section(controls, "Jog")
         pack(group, caption("Arrow keys move XY. Page Up and Page Down move Z."))
         self.xy_step = field(group, "XY step", number(100, 1, 20_000))

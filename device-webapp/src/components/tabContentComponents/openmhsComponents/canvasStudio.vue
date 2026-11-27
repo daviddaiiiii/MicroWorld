@@ -506,7 +506,7 @@ export default {
     this._fullTileIds = new Set();
     this._finalSlideLoaded = false;
     this._finalSlideLoadInFlight = false;
-    this._awaitingFinalSlide = false;
+    this._awaitingFinalSlide = this.scanning;
     this._resizeObserver = new ResizeObserver(() => {
       if (!this.drag) this.fit();
     });
@@ -531,7 +531,7 @@ export default {
       // scan, status is deliberately image-free and the final load is still
       // pending until the Mac publishes its refined result.
       this._finalSlideLoaded = !live && !loaded.deferred_load && !!this.slide;
-      this._awaitingFinalSlide = live && !this._finalSlideLoaded;
+      this._awaitingFinalSlide = live || (loaded.deferred_load && !loaded.refined);
       if (live || loaded.deferred_load) this.mode = "tiles";
       await this.$nextTick();
       this.fit();
@@ -541,7 +541,7 @@ export default {
         revision: this.doc.revision
       });
     } catch (e) {
-      this.error = this.message(e);
+      this.error = this.scanning ? "Waiting for the PC Worker to receive scan tiles…" : this.message(e);
     }
     this._refresh = setInterval(() => {
       if (
@@ -554,7 +554,7 @@ export default {
         this.doc.refine_phase === "refining"
       )
         this.refreshScan();
-    }, 2500);
+    }, 1500);
   },
   beforeDestroy() {
     clearInterval(this._refresh);
@@ -647,9 +647,8 @@ export default {
       // Studio's own scan watcher sees the transition. Explicitly arm the
       // final-slide wait here so an already-open Tiles view is upgraded in
       // place, without closing/reopening the Canvas.
+      if (this._finalSlideLoaded) return;
       this._awaitingFinalSlide = true;
-      this._finalSlideLoaded = false;
-      this.mode = "tiles";
       return this.refreshScan();
     },
     captureAtFov() {
@@ -723,6 +722,8 @@ export default {
             d.phase || d.scan_phase || "",
             tiles.length,
             last && last.id,
+            d.refined,
+            d.refine_phase,
             d.refine_progress || 0
           ].join("|");
           if (signature === this._liveStatusSignature && this.doc) return;
@@ -746,7 +747,7 @@ export default {
         });
       } catch (e) {
         this.error = this.scanning
-          ? "Waiting for scan tiles to reach the Mac…"
+          ? "Waiting for the PC Worker to receive scan tiles…"
           : this.message(e);
       } finally {
         this._refreshing = false;
@@ -1712,13 +1713,13 @@ fieldset {
   text-align: left;
 }
 header {
-  min-height: 68px;
+  min-height: 54px;
   flex-wrap: wrap;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 10px 24px;
+  gap: 8px;
+  padding: 8px 16px;
   background: #fff;
   border-bottom: 1px solid #e5e5e7;
 }
@@ -1741,8 +1742,12 @@ button {
   background: transparent;
   color: inherit;
   border-radius: 7px;
-  padding: 8px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 11px;
   font: inherit;
+  line-height: 1.25;
   cursor: pointer;
   white-space: nowrap;
   min-height: 36px;
@@ -1961,7 +1966,10 @@ footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 5px 16px;
+  box-sizing: border-box;
   background: #fff;
   border-top: 1px solid #e5e5e7;
   font-size: 11px;
@@ -2001,8 +2009,8 @@ footer {
 }
 @media (max-width: 800px) {
   header {
-    padding: 0 12px;
-    gap: 10px;
+    padding: 6px 12px;
+    gap: 6px;
     height: auto;
   }
   .eyebrow {

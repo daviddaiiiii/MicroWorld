@@ -317,7 +317,7 @@ struct NativeCanvasView: View {
             default: break
             }
         }
-        return [canvas.error, canvas.notice, canvas.roiStatus].first { !$0.isEmpty } ?? "Canvas saved on this Mac"
+        return [canvas.error, canvas.notice, canvas.roiStatus].first { !$0.isEmpty } ?? "Canvas saved"
     }
 
     private func delete(storage: String) {

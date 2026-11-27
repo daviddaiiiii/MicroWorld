@@ -16,7 +16,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 gi.require_version("WebKit2", "4.1")
 gi.require_foreign("cairo")
-from gi.repository import Gdk, Gio, GLib, Gtk, WebKit2
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango, WebKit2
 
 RESOURCES = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("MICROWORLD_HOME", Path.home() / "MicroWorld")).expanduser().resolve()
@@ -114,10 +114,13 @@ class MicroWorld(Gtk.Application):
         main = column(0)
         split.pack2(main, True, False)
         split.set_position(232)
-        self.header_bar = Gtk.Box(spacing=12, margin_start=18, margin_end=18, margin_top=11, margin_bottom=11)
+        self.header_bar = Gtk.Box(spacing=12, margin_start=18, margin_end=18, margin_top=10, margin_bottom=10)
         self.page_heading = pack(self.header_bar, label("Observe", True), True)
         self.page_heading.get_style_context().add_class("workspace-heading")
-        self.address_badge = pack(self.header_bar, caption(""))
+        self.address_badge = pack(self.header_bar, label(""))
+        self.address_badge.set_valign(Gtk.Align.CENTER)
+        self.address_badge.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.address_badge.set_max_width_chars(39)
         self.address_badge.get_style_context().add_class("address-badge")
         pack(main, self.header_bar)
         pack(main, Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
@@ -222,15 +225,18 @@ class MicroWorld(Gtk.Application):
 
     def create_observe(self):
         observe = column(0)
-        toolbar = Gtk.Box(spacing=8, margin_start=14, margin_end=14, margin_top=8, margin_bottom=8)
+        toolbar = Gtk.Box(spacing=8, margin_start=18, margin_end=18, margin_top=8, margin_bottom=8)
         self.observe_bar = pack(observe, toolbar)
         self.camera_badge = pack(toolbar, label("Waiting for camera…"), True)
+        self.camera_badge.set_ellipsize(Pango.EllipsizeMode.END)
         pack(toolbar, button("Stage", lambda *_: self.select("navigate")))
         self.roi = pack(toolbar, button("Mark ROI", lambda *_: self.viewer("roi")))
         self.af = pack(toolbar, button("Fast AF", lambda *_: self.focus()))
         self.snap = pack(toolbar, button("Snapshot", lambda *_: self.snapshot()))
         self.recent = pack(toolbar, button("Recent", self.open_recent))
         self.scan = pack(toolbar, button("New Scan", lambda *_: self.viewer("newScan"), True))
+        for control in toolbar.get_children():
+            control.set_valign(Gtk.Align.CENTER)
         manager = WebKit2.UserContentManager()
         manager.register_script_message_handler("microworldCanvas")
         manager.connect("script-message-received::microworldCanvas", self.observe_state)
@@ -262,7 +268,10 @@ class MicroWorld(Gtk.Application):
         self.stack.set_visible_child_name(self.selected_tab if self.active else "welcome")
         name = next(text for text, tab, _ in WORKSPACE_TABS if tab == self.selected_tab)
         self.page_heading.set_text(name if self.active else "Microscopes")
-        self.address_badge.set_text(self.active["microscope"].removeprefix("http://") if self.active else "")
+        address = self.active["microscope"].removeprefix("http://") if self.active else ""
+        self.address_badge.set_text(address)
+        self.address_badge.set_tooltip_text(address or None)
+        self.address_badge.set_visible(bool(address))
         self.viewer("visible", self.selected_tab == "openmhs")
         self.update_controls()
 

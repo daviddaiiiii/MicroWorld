@@ -203,6 +203,8 @@ struct ContentView: View {
                     Spacer()
                     Label(connection.address.display, systemImage: "link")
                         .font(.caption.monospacedDigit())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)

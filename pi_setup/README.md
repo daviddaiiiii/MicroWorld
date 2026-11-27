@@ -4,12 +4,12 @@ Use this package on a Raspberry Pi with a running OpenFlexure microscope server 
 
 ## Install or update
 
-Download the Pi archive and its SHA-256 file from the [MicroWorld release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.3). Either download on the Pi or copy the two files to it. Run these commands on the Pi from the download directory:
+Download the Pi archive and its SHA-256 file from the [MicroWorld release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.4). Either download on the Pi or copy the two files to it. Run these commands on the Pi from the download directory:
 
 ```bash
-sha256sum -c MicroWorld-0.1.3-Pi.tar.gz.sha256
-tar -xzf MicroWorld-0.1.3-Pi.tar.gz
-cd MicroWorld-0.1.3-Pi
+sha256sum -c MicroWorld-0.1.4-Pi.tar.gz.sha256
+tar -xzf MicroWorld-0.1.4-Pi.tar.gz
+cd MicroWorld-0.1.4-Pi
 sudo ./install-microworld-pi.sh
 ```
 
@@ -25,7 +25,7 @@ The primary endpoints are `/api/v2/extensions/org.microworld.scan-mosaic` and `/
 
 Look for `MicroWorld Pi extensions are ready.` after the installer verifies the scan and ROI endpoints.
 
-Open MicroWorld on the Mac and connect to the Pi. If the app was already connected before installing, disconnect and reconnect so it can discover the new capabilities. Follow the [Mac setup](https://github.com/daviddaiiiii/MicroWorld#2-install-on-the-mac) to try a 2 × 2 canvas.
+Open MicroWorld on your computer and connect to the Pi. If the app was already connected before installing, disconnect and reconnect so it can discover the new capabilities. Follow the [desktop setup](https://github.com/daviddaiiiii/MicroWorld#2-install-the-desktop-app) to try a 2 × 2 canvas.
 
 ## Restore the previous extensions
 

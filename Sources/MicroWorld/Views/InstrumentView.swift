@@ -130,9 +130,10 @@ struct InstrumentView: View {
 
     private var observe: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 8) {
                 Label(instrument.camera.status, systemImage: "circle.fill")
                     .font(.caption.weight(.medium))
+                    .lineLimit(1)
                     .foregroundStyle(instrument.camera.status == "Live" ? Color.microworldAccent : .secondary)
                 Spacer()
                 Button {
@@ -394,9 +395,9 @@ struct StagePanel: View {
         Form {
             Section("Current position") {
                 if let p = instrument.position {
-                    LabeledContent("X", value: String(p.x))
-                    LabeledContent("Y", value: String(p.y))
-                    LabeledContent("Z", value: String(p.z))
+                    LabeledContent("X") { Text(p.x, format: .number).monospacedDigit() }
+                    LabeledContent("Y") { Text(p.y, format: .number).monospacedDigit() }
+                    LabeledContent("Z") { Text(p.z, format: .number).monospacedDigit() }
                 } else { Text("Waiting for position…").foregroundStyle(.secondary) }
             }
             Section("Jog") {
@@ -443,7 +444,9 @@ struct StagePanel: View {
     private var z: Int { min(5_000, max(1, stepZ)) }
 
     private func jog(_ label: String, x: Int = 0, y: Int = 0, z: Int = 0) -> some View {
-        Button(label) { Task { await instrument.move(StagePosition(x: x, y: y, z: z)) } }
+        Button { Task { await instrument.move(StagePosition(x: x, y: y, z: z)) } } label: {
+            Text(label).frame(maxWidth: .infinity)
+        }
             .disabled(!instrument.canControl)
     }
 }

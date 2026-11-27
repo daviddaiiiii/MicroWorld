@@ -92,10 +92,14 @@ change(observation, '''    this.$nextTick(() => {
     });''')
 studio = src / "components/tabContentComponents/openmhsComponents/canvasStudio.vue"
 change(studio, '''          `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
-          { ...body, operation: "canvas", session_id: this.session },''', '''          new URLSearchParams(window.location.search).has("slide")
+          { ...body, operation: "canvas", session_id: this.session },''', '''          ((window.__MICROWORLD__ && window.__MICROWORLD__.localWorker) || new URLSearchParams(window.location.search).has("slide"))
             ? `/mosaic/${encodeURIComponent(this.session)}/canvas`
             : `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
           { ...body, operation: "canvas", session_id: this.session },''')
+change(studio, '      const suffix = full ? "" : "&thumb=1&width=320";', '''      const suffix = full ? "" : "&thumb=1&width=320";
+      if ((window.__MICROWORLD__ && window.__MICROWORLD__.localWorker) || new URLSearchParams(window.location.search).has("slide")) {
+        return `/mosaic/${encodeURIComponent(this.session)}/tile?ix=${encodeURIComponent(t.ix)}&iy=${encodeURIComponent(t.iy)}&r=${encodeURIComponent(revision || 0)}${suffix}`;
+      }''')
 change(index, "</body>", '''    <script>
       const mwQuery = new URLSearchParams(window.location.search);
       const mwSlide = mwQuery.get("slide");

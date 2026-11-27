@@ -248,11 +248,11 @@ def _finalize_after_sync(sid: str) -> None:
                 break
             if phase == "error":
                 raise RuntimeError(
-                    "Mac refine failed: {}".format(status.get("error") or "unknown error")
+                    "PC Worker refinement failed: {}".format(status.get("error") or "unknown error")
                 )
             time.sleep(2.0)
         else:
-            raise TimeoutError("Mac refine timed out")
+            raise TimeoutError("PC Worker refinement timed out")
 
         man = read_manifest(sid)
         pull_slide_image(sid, man.get("mosaic_id") or man.get("slide_id"))
@@ -359,7 +359,7 @@ def maybe_sync_scan() -> None:
         result = sync_pull_incremental(sid)
         sync = result.get("sync") or {}
         LOG.info(
-            "Mac sync %s phase=%s mac=%s/%s new=%s",
+            "PC Worker sync %s phase=%s tiles=%s/%s new=%s",
             sid,
             phase,
             sync.get("mac_cells"),

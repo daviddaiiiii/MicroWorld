@@ -71,7 +71,7 @@ def seed_lib() -> None:
         readme.write_text(
             "# MicroWorld lib\n\n"
             "Agent-maintained shared knowledge — not tied to one Camera view.\n\n"
-            "- `env.md` — Python / conda notes for this Mac\n"
+            "- `env.md` — Python / conda notes for this computer\n"
             "- `algorithms/` — classic algorithm wrappers (same calling shape)\n"
             "- `models/` — checkpoints and how to load them\n",
             encoding="utf-8",

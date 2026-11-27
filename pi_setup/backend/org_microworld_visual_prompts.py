@@ -1360,7 +1360,7 @@ class VisualPromptStore(object):
             "path": str(dest),
             "n": n,
             "split": split,
-            "hint": "Copy this folder to the Mac worker and call start_training(dataset_dir=...)",
+            "hint": "Copy this folder to the PC Worker and call start_training(dataset_dir=...)",
         }
         (dest / "export.json").write_text(
             json.dumps(info, indent=2) + "\n", encoding="utf-8"

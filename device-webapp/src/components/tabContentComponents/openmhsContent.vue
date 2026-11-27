@@ -1690,7 +1690,7 @@ export default {
         !this.refineBusy &&
         !(await this.ensureMacSession())
       ) {
-        this.scanStatus = "Connect the Mac archive to edit this canvas";
+        this.scanStatus = "Connect to the PC Worker that stores this Canvas to edit it";
         return;
       }
       this.studioMode = this.scanRunning || this.refineBusy ? "tiles" : mode;
@@ -4560,7 +4560,7 @@ export default {
                   this.scanStatus = "Canvas updated";
                 } catch (_) {
                   this.scanStatus =
-                    "Canvas update pending — check Mac connection";
+                    "Canvas update pending — check the PC Worker connection";
                 }
               }
             } else {
@@ -4572,7 +4572,7 @@ export default {
                 this.refreshPreview();
               }
               if (this.macPathEnabled) {
-                this.scanStatus = "Scan complete — open Canvas to explore";
+                this.scanStatus = "PC Worker is assembling the Slide…";
                 try {
                   await this.syncTilesToMacOnly();
                 } catch (_) {
@@ -4742,7 +4742,7 @@ export default {
           throw new Error("PC sync timed out");
         }
         this.macArchived = true;
-        this.scanStatus = "Assembling Slide on Mac…";
+        this.scanStatus = "PC Worker is assembling the Slide…";
         try {
           await this.runMacRefine({
             afterArchive: true,
@@ -4760,7 +4760,7 @@ export default {
     async runPiRefineFallback(reason) {
       this.macPathEnabled = false;
       this.macArchived = false;
-      this.scanStatus = `Mac unavailable — assembling Slide on microscope…`;
+      this.scanStatus = `PC Worker unavailable — assembling the Slide on the microscope…`;
       if (reason) {
         // keep reason short in status after start
       }
@@ -5373,8 +5373,11 @@ export default {
   color: #242426;
 }
 .canvas-dialog button {
-  margin: 8px;
-  padding: 8px 12px;
+  margin: 0;
+  padding: 0 12px;
+  min-height: 34px;
+  font: inherit;
+  line-height: 1.25;
   border: 1px solid #ddd;
   border-radius: 8px;
   background: #fafafa;
@@ -5978,8 +5981,6 @@ export default {
   background: #3d8bfd;
   border: none;
   color: #fff;
-  border-radius: 8px;
-  padding: 6px 12px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -6525,8 +6526,11 @@ export default {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
   border-radius: 8px;
-  padding: 6px 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  font: inherit;
   font-size: 12px;
+  line-height: 1.25;
   cursor: pointer;
 }
 .grid-row button.active {
@@ -6541,7 +6545,14 @@ export default {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
+  align-items: center;
   flex-wrap: wrap;
+}
+.setup-actions button {
+  min-height: 34px;
+  border-radius: 8px;
+  padding: 0 12px;
+  line-height: 1.25;
 }
 .setup-actions .primary {
   background: #3d8bfd;

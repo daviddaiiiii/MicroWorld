@@ -50,7 +50,7 @@ struct NativeGallery: View {
                         }
                     }
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("This Mac").font(.headline)
+                        Text("This computer").font(.headline)
                         if instrument.localCaptures.isEmpty { Text("No saved snapshots.").foregroundStyle(.secondary) }
                         ForEach(instrument.localCaptures.filter { matches($0.lastPathComponent) }, id: \.self) { url in
                             captureRow(url.lastPathComponent) {

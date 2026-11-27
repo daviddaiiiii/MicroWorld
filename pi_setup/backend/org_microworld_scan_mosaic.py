@@ -2262,7 +2262,7 @@ class ScanMosaicExtension(BaseExtension):
         try:
             payload = json.loads(raw.decode("utf-8"))
         except Exception as exc:
-            raise ValueError("bad Mac manifest: {}".format(exc))
+            raise ValueError("Invalid PC Worker manifest: {}".format(exc))
         man = payload.get("manifest") if isinstance(payload, dict) else None
         if not isinstance(man, dict):
             man = payload if isinstance(payload, dict) else {}
@@ -2917,7 +2917,7 @@ class ScanMosaicExtension(BaseExtension):
                 logging.warning("Skipping tile cleanup because stage preview failed")
                 return out
             logging.info(
-                "Scan complete: retained %s tiles for Mac global registration",
+                "Scan complete: retained %s tiles for PC Worker registration",
                 len(cells),
             )
             st.phase = "done"
@@ -2931,7 +2931,7 @@ class ScanMosaicExtension(BaseExtension):
             return out
 
         # Cleanup is deferred until the Mac has ingested and refined the tiles.
-        logging.info("Deferring tile cleanup until Mac refine succeeds")
+        logging.info("Deferring tile cleanup until PC Worker refinement succeeds")
         deleted = {"deleted": 0, "deferred": True}
         out["deleted"] = (
             deleted.get("deleted", 0) if isinstance(deleted, dict) else deleted
@@ -5383,7 +5383,7 @@ class RefineView(ActionView):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac refine response")
+            abort(502, "Invalid PC Worker refine response")
 
 
 class TileAtView(View):
@@ -5438,7 +5438,7 @@ class TileAtView(View):
                     return resp
                 except Exception:
                     logging.debug(
-                        "tile_at Mac fallback failed for %s", key, exc_info=True
+                        "tile_at PC Worker fallback failed for %s", key, exc_info=True
                     )
             abort(404, "No tile at that index")
 
@@ -5542,7 +5542,7 @@ class HydrateFromMacView(View):
         except ValueError as exc:
             abort(400, str(exc))
         except Exception as exc:
-            logging.exception("hydrate from Mac failed")
+            logging.exception("Restore from PC Worker failed")
             abort(502, "hydrate failed: {}".format(exc))
 
 
@@ -5828,7 +5828,7 @@ class MacSessionView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac response")
+            abort(502, "Invalid PC Worker response")
 
     def delete(self):
         from flask import request
@@ -5851,7 +5851,7 @@ class MacListView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac list")
+            abort(502, "Invalid PC Worker list")
 
 
 class MacWorkspaceView(View):
@@ -5865,7 +5865,7 @@ class MacWorkspaceView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac workspace listing")
+            abort(502, "Invalid PC Worker workspace listing")
 
 
 class MacRecaptureView(View):
@@ -5905,7 +5905,7 @@ class MacViewsView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac views")
+            abort(502, "Invalid PC Worker views")
 
     def post(self):
         from flask import request
@@ -5947,7 +5947,7 @@ class MacCurrentViewView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac current view")
+            abort(502, "Invalid PC Worker current view")
 
 
 class MacUiEventsView(View):
@@ -5966,7 +5966,7 @@ class MacUiEventsView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac ui events")
+            abort(502, "Invalid PC Worker ui events")
 
 
 class MacAgentSnapshotView(View):
@@ -5982,7 +5982,7 @@ class MacAgentSnapshotView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac agent snapshot")
+            abort(502, "Invalid PC Worker agent snapshot")
 
     def post(self):
         from flask import request
@@ -6014,7 +6014,7 @@ class MacLayoutView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac layout")
+            abort(502, "Invalid PC Worker layout")
 
 
 class MacRefineStatusView(View):
@@ -6028,7 +6028,7 @@ class MacRefineStatusView(View):
         try:
             return json.loads(data.decode("utf-8"))
         except Exception:
-            abort(502, "bad Mac refine status")
+            abort(502, "Invalid PC Worker refine status")
 
 
 class MacRefineStartView(View):

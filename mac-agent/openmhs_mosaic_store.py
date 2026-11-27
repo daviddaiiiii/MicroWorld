@@ -409,7 +409,7 @@ def _build_mac_live_preview(
         revision = int(prior_manifest.get("live_preview_revision") or 0) + 1
         return True, layout, revision
     except Exception:
-        LOG.exception("Mac live preview failed for %s", session_id)
+        LOG.exception("PC Worker live preview failed for %s", session_id)
         return False, None, int(prior_manifest.get("live_preview_revision") or 0)
 
 
