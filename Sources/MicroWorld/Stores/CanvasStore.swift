@@ -94,6 +94,7 @@ struct CanvasDocument: Codable {
     var refined: Bool?
     var deferred_load: Bool?
     var pyramid_revision: String?
+    var calibration_fallback: Bool?
     var slide: String?
 }
 
@@ -192,7 +193,9 @@ final class CanvasStore {
                         if status.refine_phase == "refining" {
                             notice = "Registering and fusing tiles…"
                         } else {
-                            notice = "Acquiring · \(status.tiles.count) tiles"
+                            notice = status.calibration_fallback == true
+                                ? "Acquiring with fixed XY steps · \(status.tiles.count) tiles"
+                                : "Acquiring · \(status.tiles.count) tiles"
                         }
                     } else if needsLoad {
                         if wasLive { showTiles = false }
@@ -217,7 +220,7 @@ final class CanvasStore {
         guard doc.deferred_load != true else { return }
         image = doc.slide.flatMap(Self.decodeImage)
         loaded = true
-        notice = ""
+        notice = doc.calibration_fallback == true ? "Scan used fixed XY steps" : ""
     }
 
     func tileURL(_ tile: CanvasLayer, width: Int = 320) -> URL? {

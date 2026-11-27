@@ -165,7 +165,7 @@ class Api:
             current = self.request(SCAN + "/mac/views/current")
             if current.get("current_view_id"):
                 request["view_id"] = current["current_view_id"]
-            request.update(auto_stride=options["auto_stride"], target_overlap=.3,
+            request.update(auto_stride=options["auto_stride"], target_overlap=.25,
                            mac_preview_only=grid[2] == 1 and not bayer and request["namemode"] == "coordinates",
                            keep_tiles=True, auto_refine=False, scan_focus_guard=False,
                            adaptive_focus_stack=False, center_tile=False)

@@ -156,7 +156,7 @@ struct AdvancedScanOptions: Codable, Equatable {
                 throw RuntimeError.message("MicroWorld supports up to 32 images per XY axis.")
             }
             body["auto_stride"] = automaticStride
-            body["target_overlap"] = 0.3
+            body["target_overlap"] = 0.25
             // The Mac archives a single JPEG per XY field. Keep the Pi
             // dataset for acquisitions with more than one plane or Bayer data.
             body["mac_preview_only"] = grid.z == 1 && !capture.bayer && naming == .coordinates

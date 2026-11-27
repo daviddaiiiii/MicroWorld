@@ -50,11 +50,6 @@ SAFE_RESIZE = (640, 480)
 # Fallback if pre-scan calibration fails (updated from live probe @ 640x480)
 CAL_REF_WH = (640, 480)
 CAL_PX_PER_STEP = (0.1437, 0.1344)
-# Pre-scan stride calibration
-CALIB_PROBE_STEPS = 600
-STRIDE_MIN = 400
-STRIDE_MAX = 4500
-AUTO_STRIDE_DEFAULT = True
 NAME_PAT = re.compile(
     r"^(?P<prefix>.+)_(?P<x>-?\d+)_(?P<y>-?\d+)_(?P<z>-?\d+)\.(?P<ext>jpe?g)$",
     re.I,
@@ -128,10 +123,6 @@ def preview_tile_width(n_cells, nx=None, ny=None):
     tw = int(float(PREVIEW_MAX_EDGE) / float(side))
     return int(max(160, min(cap, tw)))
 
-
-def _polish_for_slide(im):
-    """Identity — Refine keeps capture color (registration + feather only)."""
-    return im
 
 def _overlap_texture_ok(ref, mov, expect_dx, expect_dy):
     """True if expected overlap strips have enough texture for NCC."""
@@ -376,16 +367,6 @@ def _pair_paste_offset(ref, mov, expect_dx, expect_dy, level="full"):
     if sc < 0.12:
         return float(edx), float(edy), float(sc)
     return pdx, pdy, sc
-
-
-def _content_shift_cv(ref, mov, expect_dx, expect_dy, search_frac=0.5):
-    """Legacy name: return OpenCV-style content shift + score via strip NCC paste.
-
-    paste = -content_shift, so content_shift = -paste.
-    """
-    del search_frac
-    pdx, pdy, sc = _pair_paste_offset(ref, mov, expect_dx, expect_dy)
-    return -pdx, -pdy, sc
 
 
 def _normalize_align(align):

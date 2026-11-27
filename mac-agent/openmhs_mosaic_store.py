@@ -849,6 +849,7 @@ def sync_pull_incremental(
             "mosaic_id": details.get("mosaic_id") or man.get("mosaic_id"),
             "stride_size": details.get("stride_size") or man.get("stride_size"),
             "px_per_step": details.get("px_per_step") or man.get("px_per_step"),
+            "calibration": details.get("calibration") or man.get("calibration"),
             "axis_sign": details.get("axis_sign") or man.get("axis_sign") or [-1, -1],
             "origin_xy": details.get("origin_xy") or man.get("origin_xy"),
             "initial_xy": details.get("initial_xy") or man.get("initial_xy"),

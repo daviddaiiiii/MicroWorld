@@ -471,11 +471,15 @@ export default {
     },
     canvasStatus() {
       if (this.error) return this.error;
-      if (this.locked) return this.scanStatus || "Scanning…";
+      if (this.locked) return [
+        this.scanStatus || "Scanning…",
+        this.doc && this.doc.calibration_fallback ? "Using fixed XY steps" : ""
+      ].filter(Boolean).join(" · ");
       if (this.busy) return "Saving and blending…";
       if (this.vpStatus) return this.vpStatus;
       if (this.marking) return "Drag to mark a region";
-      return this.doc ? "All changes saved" : "Opening canvas…";
+      if (!this.doc) return "Opening canvas…";
+      return this.doc.calibration_fallback ? "Scan used fixed XY steps" : "All changes saved";
     },
     activeAdjustments() {
       return (this.chosen && this.chosen.adjustments) || this.doc.adjustments;

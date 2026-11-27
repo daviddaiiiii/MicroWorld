@@ -431,6 +431,7 @@ def _status_response(sid, manifest=None):
             refined=bool(manifest.get('refined') or refine.get('refined')),
             refine_phase=refine.get('phase') or 'idle',
             sync_complete=bool(sync.get('complete')),
+            calibration_fallback=bool((manifest.get('calibration') or {}).get('fallback_stride_xy')),
         )
         _STATUS_CACHE[str(sid)]=(time.monotonic(),result)
         return result
@@ -488,6 +489,7 @@ def _load_response(sid, locked):
                 )
             else:
                 response=dict(doc,locked=locked,**render(sid,doc,publish=False))
+            response['calibration_fallback']=bool((manifest.get('calibration') or {}).get('fallback_stride_xy'))
             _cache_load(sid,key,response)
             return response
     finally:

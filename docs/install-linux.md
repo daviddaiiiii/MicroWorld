@@ -3,8 +3,8 @@
 The Linux preview was built for Ubuntu 24.04 ARM64. The application uses a GTK window and WebKitGTK. The Pi extensions, scan and stitching logic, Canvas data, and MCP tools are shared with [the macOS version](install-macos.md).
 
 1. Install the Pi extensions once using the [Pi installation guide](../pi_setup/README.md). Connect the Ubuntu computer and Pi to the same private network. For scan processing the Pi needs access to TCP port 18766 on the computer that runs the PC Worker.
-2. Download [microworld_0.1.9-2_arm64.deb](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.9/microworld_0.1.9-2_arm64.deb) and its `.sha256` file from the same release. From the download directory, compare `sha256sum microworld_0.1.9-2_arm64.deb` with the matching checksum.
-3. Run `sudo apt install ./microworld_0.1.9-2_arm64.deb` and open **MicroWorld** in the application menu.
+2. Download [microworld_0.1.10-2_arm64.deb](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.10/microworld_0.1.10-2_arm64.deb) and its `.sha256` file from the same release. From the download directory, compare `sha256sum microworld_0.1.10-2_arm64.deb` with the matching checksum.
+3. Run `sudo apt install ./microworld_0.1.10-2_arm64.deb` and open **MicroWorld** in the application menu.
 4. Pick the Pi in **Microscopes** or enter its address, such as `microscope.local:5000`. Choose **Connect**. Linux discovery checks local IPv4 addresses, Avahi if installed, and Tailscale peers if Tailscale is running.
 
 ## Camera, stage and scans

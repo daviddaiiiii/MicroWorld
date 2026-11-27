@@ -12,6 +12,25 @@ from typing import Dict, List, Tuple
 
 
 GridKey = Tuple[int, int]
+REFERENCE_FOV = (640, 480)
+DEFAULT_OVERLAP = 0.25
+FIXED_STRIDE = (2000, 1500, 100)
+
+
+def stride_for_overlap(px_per_step: Tuple[float, float], overlap: float) -> Tuple[int, int]:
+    """Convert calibrated distances in reference pixels to motor steps."""
+    if not math.isfinite(overlap) or not 0.10 <= overlap <= 0.55:
+        raise ValueError("Scan overlap must be between 10% and 55%.")
+    if any(not math.isfinite(scale) or scale <= 0 for scale in px_per_step):
+        raise ValueError("Scan calibration requires a positive scale on both axes.")
+    return tuple(max(1, round(span * (1.0 - overlap) / scale))
+                 for span, scale in zip(REFERENCE_FOV, px_per_step))
+
+
+def overlap_for_stride(stride_xy, px_per_step):
+    """Report the overlap implied by an existing scan's measured geometry."""
+    return tuple(1.0 - abs(step * scale) / span
+                 for step, scale, span in zip(stride_xy, px_per_step, REFERENCE_FOV))
 
 
 def spiral_grid_order(nx: int, ny: int) -> List[GridKey]:

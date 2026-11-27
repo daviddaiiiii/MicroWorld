@@ -781,8 +781,7 @@ const GRID_PRESETS = {
   large: [4, 4, 1]
 };
 
-// Tile view uses geometric overlap (same as capture target_overlap).
-const TILE_OVERLAP = 0.3;
+const DEFAULT_SCAN_OVERLAP = 0.25;
 const VIEW_LS_KEY = "openmhs.currentViewId";
 
 export default {
@@ -791,6 +790,7 @@ export default {
   data() {
     return {
       studioSession: null,
+      startingNewScan: false,
       studioMode: "slide",
       studioAdjust: false,
       stepPreset: "medium",
@@ -1315,10 +1315,10 @@ export default {
         };
       }
       if (!this.scanMeta || !this.stagePos) return null;
-      const stride = this.scanMeta.stride_size || [2000, 1500, 100];
+      const stride = this.scanMeta.stride_size;
       const origin =
         this.scanMeta.origin_xy || this.scanMeta.initial_xy || null;
-      if (!origin || !stride[0] || !stride[1]) return null;
+      if (!origin || !stride || !stride[0] || !stride[1]) return null;
       const nx = Math.max(1, this.scanMeta.nx || this.grid[0]);
       const ny = Math.max(1, this.scanMeta.ny || this.grid[1]);
       const ix = (this.stagePos.x - origin[0]) / stride[0];
@@ -1329,12 +1329,11 @@ export default {
       const signs = (this.scanMeta && this.scanMeta.axis_sign) || [-1, -1];
       const ax = signs[0] < 0 ? -1 : 1;
       const ay = signs[1] < 0 ? -1 : 1;
-      const left =
-        ax < 0 ? ((minIx + nx - ix - 1) / nx) * 100 : ((ix - minIx) / nx) * 100;
-      const top =
-        ay < 0 ? ((minIy + ny - iy - 1) / ny) * 100 : ((iy - minIy) / ny) * 100;
-      const w = (1 / nx) * 100;
-      const h = (1 / ny) * 100;
+      const g = this.fallbackTileGeometry();
+      const left = ((ax < 0 ? minIx + nx - ix - 1 : ix - minIx) * g.sx / g.w) * 100;
+      const top = ((ay < 0 ? minIy + ny - iy - 1 : iy - minIy) * g.sy / g.h) * 100;
+      const w = 100 / g.w;
+      const h = 100 / g.h;
       return {
         left: Math.max(-20, Math.min(120 - w / 2, left)),
         top: Math.max(-20, Math.min(120 - h / 2, top)),
@@ -1523,7 +1522,7 @@ export default {
       }
     },
     async restoreSharedCanvas() {
-      if (this.sharedCanvasRestoring || this.scanRunning || this.studioSession)
+      if (this.sharedCanvasRestoring || this.startingNewScan || this.scanRunning || this.studioSession)
         return;
       this.sharedCanvasRestoring = true;
       try {
@@ -1532,7 +1531,7 @@ export default {
         });
         const view = data && data.current_view;
         const sid = view && view.active_record_id;
-        if (!sid) return;
+        if (!sid || this.startingNewScan || this.scanRunning || this.studioSession) return;
         if (view.id && view.id !== this.currentViewId) {
           this.persistCameraViewId(
             view.id,
@@ -1543,7 +1542,7 @@ export default {
           previewOnly: true,
           title: sid
         });
-        if (!this.externalScanDisposed && !this.scanRunning) {
+        if (!this.externalScanDisposed && !this.startingNewScan && !this.scanRunning) {
           await this.openCanvasStudio("slide");
         }
       } catch (_) {
@@ -1874,7 +1873,7 @@ export default {
         });
       });
     },
-    focusScan() {
+    focusScan({ restoreSession = true } = {}) {
       this.viewFocus = "scan";
       this.scanPipVisible = true;
       this.scanSetupOpen = false;
@@ -1890,7 +1889,7 @@ export default {
         this.gridPreset = "full";
       }
       this.$nextTick(async () => {
-        await this.ensureMacSession();
+        if (restoreSession) await this.ensureMacSession();
         this.updateMosaicContentBox();
         this.scheduleLodRefresh();
       });
@@ -2154,13 +2153,8 @@ export default {
       const lw = layer.clientWidth;
       const lh = layer.clientHeight;
       if (lw < 8 || lh < 8) return;
-      const m = this.scanMeta || {};
-      const nx = Math.max(1, Number(m.nx) || this.grid[0] || 1);
-      const ny = Math.max(1, Number(m.ny) || this.grid[1] || 1);
-      const stride = 1 - TILE_OVERLAP;
-      const cw = 1 + (nx - 1) * stride;
-      const ch = 1 + (ny - 1) * stride;
-      const canvasAspect = (cw * (4 / 3)) / Math.max(0.01, ch);
+      const g = this.fallbackTileGeometry();
+      const canvasAspect = (g.w * (4 / 3)) / g.h;
       let w;
       let h;
       if (lw / lh > canvasAspect) {
@@ -2241,7 +2235,7 @@ export default {
       try {
         const data = await this.fetchLiveDetails({ maxAge: 800 });
         const d = data || {};
-        if (this.externalScanDisposed) return;
+        if (this.externalScanDisposed || this.startingNewScan) return;
         const sid = d.session_id;
         const phase = String(d.scan_phase || d.phase || "");
         const running = [
@@ -3168,7 +3162,7 @@ export default {
       );
     },
     cellStyleForIndex(ix, iy) {
-      // Prefer stitch poses (same canvas as Slide). Fallback: ~30% overlap grid.
+      // The pre-refinement layout uses the same XY geometry as the scan.
       const key = `${ix},${iy}`;
       const pose = this.tileLayoutMap && this.tileLayoutMap[key];
       if (pose && pose.w > 0.01 && pose.h > 0.01) {
@@ -3190,29 +3184,26 @@ export default {
       const ay = signs[1] < 0 ? -1 : 1;
       const col = ax < 0 ? minIx + nx - 1 - ix : ix - minIx;
       const row = ay < 0 ? minIy + ny - 1 - iy : iy - minIy;
-      const overlap = this.overlapFromMeta();
-      const stride = 1 - overlap;
-      const canvasW = 1 + (nx - 1) * stride;
-      const canvasH = 1 + (ny - 1) * stride;
+      const g = this.fallbackTileGeometry();
       return {
-        left: `${((col * stride) / canvasW) * 100}%`,
-        top: `${((row * stride) / canvasH) * 100}%`,
-        width: `${(1 / canvasW) * 100}%`,
-        height: `${(1 / canvasH) * 100}%`,
+        left: ((col * g.sx / g.w) * 100) + "%",
+        top: ((row * g.sy / g.h) * 100) + "%",
+        width: (100 / g.w) + "%",
+        height: (100 / g.h) + "%",
         zIndex: row * nx + col + 1
       };
     },
-    overlapFromMeta() {
+    fallbackTileGeometry() {
       const m = this.scanMeta || {};
-      const stride = m.stride_size;
-      const pps = m.px_per_step;
-      if (stride && pps && stride.length >= 2 && pps.length >= 2) {
-        const ox = 1 - Math.abs(Number(stride[0]) * Number(pps[0])) / 640;
-        const oy = 1 - Math.abs(Number(stride[1]) * Number(pps[1])) / 480;
-        const o = (ox + oy) / 2;
-        if (o > 0.08 && o < 0.55) return o;
-      }
-      return TILE_OVERLAP;
+      const stride = m.stride_size || [], scale = m.px_per_step || [];
+      const fraction = (axis, span) => {
+        const value = Math.abs(stride[axis] * scale[axis]) / span;
+        return Number.isFinite(value) && value > 0 ? value : 1 - DEFAULT_SCAN_OVERLAP;
+      };
+      const sx = fraction(0, 640), sy = fraction(1, 480);
+      const nx = Math.max(1, Number(m.nx) || this.grid[0] || 1);
+      const ny = Math.max(1, Number(m.ny) || this.grid[1] || 1);
+      return { sx, sy, w: 1 + (nx - 1) * sx, h: 1 + (ny - 1) * sy };
     },
     applyTileLayout(layout) {
       if (!layout || !Array.isArray(layout.tiles)) return;
@@ -4127,73 +4118,51 @@ export default {
       }
     },
     async startNewScan() {
-      if (this.scanRunning) return;
+      if (this.startingNewScan || this.scanRunning) return;
+      this.startingNewScan = true;
       this.scanSetupOpen = false;
       try {
         const live = await this.fetchLiveDetails({ force: true });
-        if (Number(live.cell_count || 0) > 0) {
+        const expected = Number(live.cell_count || 0);
+        if (expected > 0) {
           const { data } = await axios.get(
             this.macViewsUri.replace(/\/views$/, "/session"),
             { params: { session_id: live.session_id }, timeout: 8000 }
           );
-          const m = data.manifest || {};
-          if (
-            !m.sync ||
-            !m.sync.complete ||
-            (m.cells || []).length < Number(live.cell_count)
-          )
-            throw Error("Previous acquisition is not fully archived.");
+          const manifest = data.manifest || {};
+          if (!manifest.sync || !manifest.sync.complete || (manifest.cells || []).length < expected)
+            throw new Error("Previous acquisition is not fully archived.");
         }
+
+        this.sessionGridPreset = this.gridPreset;
+        this.stopMosaicPoll();
+        // Release the Pi preview after the archived tiles are safe on the PC.
+        await axios.post(this.cleanupUri, {
+          dataset_id: live.dataset_id || this.keepDatasetId || undefined,
+          save_slide: false
+        });
+        this.studioSession = null;
+        this.canvasContext = {};
+        this.scanSession = false;
+        this.keepDatasetId = null;
+        this.sessionId = null;
+        this.piCellCount = 0;
+        this.macArchived = false;
+        this.macSessionId = null;
+        this.macArchiveBusy = false;
+        this.mosaicUrl = null;
+        this.mosaicContentBox = null;
+        this.slideStale = false;
+        this.clearLodCacheOnly();
+        this.tileLayoutMap = {};
+        this.invalidateLiveDetails();
+        await this.runScan({ append: false });
       } catch (e) {
+        this.scanSetupOpen = true;
         window.alert("Wait before creating a new canvas: " + e.message);
-        return;
+      } finally {
+        this.startingNewScan = false;
       }
-      const previous = this.macSessionId || this.sessionId;
-      if (
-        previous &&
-        this.piCellCount > 0 &&
-        !(await this.macSessionHasTiles(previous))
-      ) {
-        window.alert(
-          "Wait for the current canvas to finish archiving before creating another."
-        );
-        return;
-      }
-      this.sessionGridPreset = this.gridPreset;
-      this.mosaicUrl = null;
-      this.scanMeta = null;
-      this.mosaicContentBox = null;
-      this.stopMosaicPoll();
-      // Ensure previous session cannot flash/load into the new Scan view
-      if (this.scanSession || this.keepDatasetId) {
-        try {
-          await axios.post(this.cleanupUri, {
-            dataset_id: this.keepDatasetId,
-            save_slide: false
-          });
-        } catch (_) {
-          /* ignore */
-        }
-      } else {
-        try {
-          await axios.post(this.cleanupUri, { save_slide: false });
-        } catch (_) {
-          /* ignore */
-        }
-      }
-      this.scanSession = false;
-      this.keepDatasetId = null;
-      this.sessionId = null;
-      this.piCellCount = 0;
-      this.macArchived = false;
-      this.macSessionId = null;
-      this.macArchiveBusy = false;
-      this.slideStale = false;
-      this.scanStatus = "";
-      this.clearLodCacheOnly();
-      this.tileLayoutMap = {};
-      this.invalidateLiveDetails();
-      await this.runScan({ append: false });
     },
     async continueScan() {
       const sid = this.macSessionId || this.sessionId;
@@ -4338,11 +4307,10 @@ export default {
           min_iy: 0,
           axis_sign: [-1, -1],
           initial_xy: initial,
-          origin_xy: initial,
-          stride_size: [2000, 1500, 100]
+          origin_xy: initial
         };
       }
-      this.focusScan();
+      this.focusScan({ restoreSession: append });
       this.peekUrl = null;
       try {
         const name = `openmhs_${Date.now()}`;
@@ -4350,13 +4318,8 @@ export default {
           filename: name,
           temporary: false,
           grid: this.grid,
-          stride_size: [2000, 1500, 100],
-          // Match the stock OpenFlexure scan: fixed user-selected stride.
-          auto_stride: false,
-          target_overlap: 0.3,
-          // Use the stock OpenFlexure snake traversal for regular grids. The
-          // Mac performs the final global registration; the Pi only publishes
-          // the live stage-based preview while acquisition is running.
+          auto_stride: !append,
+          target_overlap: DEFAULT_SCAN_OVERLAP,
           style: this.isExploreMode ? "explore" : "snake",
           center_tile: false,
           explore: !!this.isExploreMode,
@@ -4373,7 +4336,6 @@ export default {
           use_video_port: true,
           namemode: "coordinates",
           keep_tiles: true,
-          // Never auto-refine: user clicks Refine (Pi or PC)
           auto_refine: false,
           append_session: !!append,
           fill_gaps: !!append && !this.isExploreMode,

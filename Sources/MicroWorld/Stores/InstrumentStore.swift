@@ -143,7 +143,7 @@ final class InstrumentStore {
             var body: [String: Any] = [
                 "filename": "microworld_\(Int(Date().timeIntervalSince1970))",
                 "temporary": false, "grid": [columns, rows, 1], "stride_size": [2000, 1500, 100],
-                "auto_stride": false, "target_overlap": 0.3, "style": explore ? "explore" : "snake",
+                "auto_stride": id == nil, "target_overlap": 0.25, "style": explore ? "explore" : "snake",
                 "explore": explore, "explore_strategy": "boundary", "explore_max_cells": 200,
                 "explore_max_radius": 28, "center_tile": false, "fast_autofocus": true,
                 "autofocus_dz": 2000, "scan_focus_guard": true, "adaptive_focus_stack": true,

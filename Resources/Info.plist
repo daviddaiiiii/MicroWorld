@@ -8,8 +8,8 @@
     <key>CFBundleDisplayName</key><string>MicroWorld</string>
     <key>CFBundleIconFile</key><string>MicroWorld</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.9</string>
-    <key>CFBundleVersion</key><string>10</string>
+    <key>CFBundleShortVersionString</key><string>0.1.10</string>
+    <key>CFBundleVersion</key><string>11</string>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

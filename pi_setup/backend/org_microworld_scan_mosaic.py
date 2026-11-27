@@ -37,14 +37,17 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from flask import Response, abort, current_app, request, send_file
+from flask import abort, current_app, request, send_file
 from labthings import current_labthing, fields, find_component, find_extension
 from labthings.extensions import BaseExtension
 from labthings.views import ActionView, PropertyView, View
 from PIL import Image
 
 try:
-    from microworld_scan_plan import center_hub_spec, spiral_grid_order
+    from microworld_scan_plan import (
+        DEFAULT_OVERLAP, FIXED_STRIDE, REFERENCE_FOV, center_hub_spec,
+        overlap_for_stride, spiral_grid_order, stride_for_overlap,
+    )
 except ImportError:  # OpenFlexure loads each extension by file path.
     import importlib.util
 
@@ -55,6 +58,11 @@ except ImportError:  # OpenFlexure loads each extension by file path.
     _plan_module = importlib.util.module_from_spec(_plan_spec)
     sys.modules["microworld_scan_plan"] = _plan_module
     _plan_spec.loader.exec_module(_plan_module)
+    DEFAULT_OVERLAP = _plan_module.DEFAULT_OVERLAP
+    FIXED_STRIDE = _plan_module.FIXED_STRIDE
+    REFERENCE_FOV = _plan_module.REFERENCE_FOV
+    overlap_for_stride = _plan_module.overlap_for_stride
+    stride_for_overlap = _plan_module.stride_for_overlap
     center_hub_spec = _plan_module.center_hub_spec
     spiral_grid_order = _plan_module.spiral_grid_order
 
@@ -81,11 +89,6 @@ try:
 except ImportError:  # pragma: no cover
     piexif = None
 
-try:
-    import marshmallow
-except ImportError:  # pragma: no cover
-    marshmallow = None
-
 # OpenFlexure can import extension files directly without adding their directory.
 try:
     from microworld_api_compat import legacy_extension
@@ -103,7 +106,7 @@ except ImportError:
 
 EXTENSION_ID = "org.microworld.scan-mosaic"
 LEGACY_EXTENSION_ID = "org.openmhs.scan-mosaic"
-EXTENSION_VERSION = "1.18.0"
+EXTENSION_VERSION = "1.19.0"
 MICROGRAPHS = "/var/openflexure/data/micrographs"
 PREVIEW_DIR = "/var/openflexure/data/scan-mosaic"
 PREVIEW_NAME = "preview.jpg"
@@ -112,7 +115,6 @@ LIVE_TILE_WIDTH = 512  # live preview per-tile (was 320 — too soft on small gr
 FINAL_TILE_WIDTH = 640
 REFINE_TILE_WIDTH = 960
 PREVIEW_MAX_EDGE = 2560  # live mosaic longest side budget (px)
-DEFAULT_OVERLAP = 0.30  # target overlap when auto-choosing stride
 # Crop this fraction from each tile edge before paste to kill seam artifacts
 TILE_EDGE_CROP = 0.02
 LIVE_MIN_INTERVAL_S = 2.5
@@ -188,18 +190,10 @@ ALIGN_TUNE_PX_MAX = 56
 ALIGN_MAX_SHIFT_UM = 40
 # Overlap strip must have enough texture or we skip NCC
 ALIGN_MIN_OVERLAP_STD = 8.0
-# Pi RAM safety: mosaic scans always use video-port sized frames
-SAFE_RESIZE = (640, 480)
-# Fallback if pre-scan calibration fails (updated from live probe @ 640x480)
-CAL_REF_WH = (640, 480)
-CAL_PX_PER_STEP = (0.1437, 0.1344)
-# Pre-scan stride calibration
-CALIB_PROBE_STEPS = 600
-STRIDE_MIN = 400
-STRIDE_MAX = 4500
-# MicroWorld Canvas scans follow the stock OpenFlexure geometry by default:
-# explicit fixed stride, with no probe movement before acquisition.
-AUTO_STRIDE_DEFAULT = False
+# Calibration and small focus/preview frames use a shared pixel scale.
+SAFE_RESIZE = REFERENCE_FOV
+CAL_PX_PER_STEP = (0.1437, 0.1344)  # Legacy manual-grid placement prior.
+CALIB_PROBE_STEPS = 1200
 NAME_PAT = re.compile(
     r"^(?P<prefix>.+)_(?P<x>-?\d+)_(?P<y>-?\d+)_(?P<z>-?\d+)\.(?P<ext>jpe?g)$",
     re.I,
@@ -356,11 +350,6 @@ def preview_tile_width(n_cells, nx=None, ny=None):
         cap = int(LIVE_TILE_WIDTH)
     tw = int(float(PREVIEW_MAX_EDGE) / float(side))
     return int(max(160, min(cap, tw)))
-
-
-def _polish_for_slide(im):
-    """Identity — Refine keeps capture color (registration + feather only)."""
-    return im
 
 
 def lock_camera_for_scan(microscope):
@@ -523,7 +512,7 @@ def _to_gray(im):
 def _place_from_stride(stride_xy, resize_w, px_per_step=None):
     """Pixel stride from stage stride using live or fallback calibration."""
     pps = px_per_step or CAL_PX_PER_STEP
-    scale = float(resize_w) / float(CAL_REF_WH[0])
+    scale = float(resize_w) / float(REFERENCE_FOV[0])
     px = max(1, int(round(abs(int(stride_xy[0])) * float(pps[0]) * scale)))
     py = max(1, int(round(abs(int(stride_xy[1])) * float(pps[1]) * scale)))
     return px, py
@@ -1210,123 +1199,80 @@ def measure_frame_shift(a, b):
     return float(dx), float(dy), float(resp)
 
 
-def calibrate_stride(
-    microscope,
-    target_overlap=DEFAULT_OVERLAP,
-    probe_steps=CALIB_PROBE_STEPS,
-    frame_size=SAFE_RESIZE,
-):
-    """Move ±probe, measure px/step, choose stride for target overlap.
-
-    Returns dict with px_per_step, stride_xy, scores; restores stage home.
-    """
-    home = tuple(int(v) for v in microscope.stage.position)
-    probe = int(probe_steps)
-    fov_w, fov_h = int(frame_size[0]), int(frame_size[1])
+def calibrate_stride(microscope, target_overlap=DEFAULT_OVERLAP, probe_steps=CALIB_PROBE_STEPS):
+    """Verify motor-to-image scale at two distances and return to the start."""
+    if not np.isfinite(target_overlap) or not 0.10 <= target_overlap <= 0.55:
+        raise ValueError("Scan overlap must be between 10% and 55%.")
     result = {
         "ok": False,
-        "px_per_step": list(CAL_PX_PER_STEP),
+        "target_overlap": target_overlap,
+        "probe_steps": probe_steps,
+        "frame_size": list(REFERENCE_FOV),
         "stride_xy": None,
-        "scores": (0.0, 0.0),
-        "shifts": None,
-        "target_overlap": float(target_overlap),
-        "probe_steps": probe,
-        "frame_size": [fov_w, fov_h],
     }
+    home = tuple(int(value) for value in microscope.stage.position)
+    reference = grab_gray_frame(microscope)
 
-    def _restore():
-        try:
-            microscope.stage.move_abs(home)
-        except Exception:
-            logging.exception("Failed restoring stage after calibration")
+    def measure(axis, steps):
+        if _focus_action_stopped():
+            raise RuntimeError("Scan calibration cancelled.")
+        target = list(home)
+        target[axis] += steps
+        microscope.stage.move_abs(target)
+        time.sleep(0.15)
+        moved = grab_gray_frame(microscope)
+        dx, dy, response = measure_frame_shift(reference, moved)
+        distance = int(microscope.stage.position[axis]) - home[axis]
+        # Ignore weak correlation, wraparound and near-zero or off-axis shifts.
+        primary, cross = (dx, dy) if axis == 0 else (dy, dx)
+        span = REFERENCE_FOV[axis]
+        if (
+            distance <= 0
+            or not all(np.isfinite(value) for value in (primary, cross, response))
+            or response < 0.14
+            or not 6 <= abs(primary) <= 0.42 * span
+            or abs(cross) > 0.25 * abs(primary)
+        ):
+            return None
+        return primary / distance, response, [dx, dy], distance
 
     try:
-        time.sleep(0.1)
-        a0 = grab_gray_frame(microscope, frame_size)
+        measurements = []
+        for axis, span in enumerate(REFERENCE_FOV):
+            first = measure(axis, probe_steps)
+            if first is None:
+                first = measure(axis, max(50, probe_steps // 2))
+            if first is None:
+                result["warning"] = "Could not measure {} motion from this field.".format("XY"[axis])
+                return result
+            # Keep the second displacement inside the unambiguous FFT range.
+            second_steps = min(first[3] * 2, round(0.37 * span / abs(first[0])))
+            if second_steps < 1.2 * first[3]:
+                second_steps = round(0.6 * first[3])
+            second = measure(axis, second_steps)
+            if second is None or abs(second[0] / first[0] - 1.0) > 0.15:
+                result["warning"] = "The two {} motion measurements disagreed.".format("XY"[axis])
+                return result
+            best = max((first, second), key=lambda item: item[3])
+            measurements.append((best[0], min(first[1], second[1]), best[2]))
+            microscope.stage.move_abs(home)
+            time.sleep(0.15)
 
-        microscope.stage.move_rel((probe, 0, 0))
-        time.sleep(0.2)
-        ax = grab_gray_frame(microscope, frame_size)
-        dx, dy, rx = measure_frame_shift(a0, ax)
-
-        microscope.stage.move_abs(home)
-        time.sleep(0.2)
-        a0y = grab_gray_frame(microscope, frame_size)
-        microscope.stage.move_rel((0, probe, 0))
-        time.sleep(0.2)
-        ay = grab_gray_frame(microscope, frame_size)
-        dx2, dy2, ry = measure_frame_shift(a0y, ay)
-
-        _restore()
-        time.sleep(0.1)
-
-        # Primary-axis magnitudes (px per stage step)
-        pps_x = abs(dx) / float(probe) if abs(dx) > 2 else float(CAL_PX_PER_STEP[0])
-        pps_y = abs(dy2) / float(probe) if abs(dy2) > 2 else float(CAL_PX_PER_STEP[1])
-        # Reject nonsense (too small / huge)
-        if not (0.02 <= pps_x <= 2.0):
-            pps_x = float(CAL_PX_PER_STEP[0])
-            rx = 0.0
-        if not (0.02 <= pps_y <= 2.0):
-            pps_y = float(CAL_PX_PER_STEP[1])
-            ry = 0.0
-
-        ov = min(0.55, max(0.10, float(target_overlap)))
-        sx = int(round((fov_w * (1.0 - ov)) / max(pps_x, 1e-6)))
-        sy = int(round((fov_h * (1.0 - ov)) / max(pps_y, 1e-6)))
-        sx = int(max(STRIDE_MIN, min(STRIDE_MAX, sx)))
-        sy = int(max(STRIDE_MIN, min(STRIDE_MAX, sy)))
-
-        ok = (rx > 0.08 and ry > 0.08) or (abs(dx) > 2 and abs(dy2) > 2)
-        # Opposite of image shift: +stage that moves features right/down means
-        # the newly captured neighbor belongs left/above on the mosaic.
-        # (Validated on this OFM; do not flip casually — breaks all grids.)
-        axis_x = -1 if (abs(dx) <= 2 or dx >= 0) else 1
-        axis_y = -1 if (abs(dy2) <= 2 or dy2 >= 0) else 1
+        scales = tuple(abs(item[0]) for item in measurements)
+        stride = stride_for_overlap(scales, target_overlap)
         result.update(
-            {
-                "ok": bool(ok),
-                "px_per_step": [pps_x, pps_y],
-                "stride_xy": [sx, sy],
-                "scores": [rx, ry],
-                "shifts": [[dx, dy], [dx2, dy2]],
-                "axis_sign": [axis_x, axis_y],
-            }
-        )
-        logging.info(
-            "stride calib: probe=%s overlap=%.2f pps=(%.4f,%.4f) "
-            "stride=(%s,%s) scores=(%.3f,%.3f) shifts=%s axis_sign=%s",
-            probe,
-            ov,
-            pps_x,
-            pps_y,
-            sx,
-            sy,
-            rx,
-            ry,
-            result["shifts"],
-            result["axis_sign"],
+            ok=True,
+            px_per_step=list(scales),
+            stride_xy=list(stride),
+            overlap_xy=list(overlap_for_stride(stride, scales)),
+            scores=[item[1] for item in measurements],
+            shifts=[item[2] for item in measurements],
+            axis_sign=[-1 if item[0] > 0 else 1 for item in measurements],
         )
         return result
-    except Exception:
-        logging.exception("stride calibration failed; using fallback")
-        _restore()
-        pps = list(CAL_PX_PER_STEP)
-        ov = float(target_overlap)
-        sx = int(round((fov_w * (1.0 - ov)) / max(pps[0], 1e-6)))
-        sy = int(round((fov_h * (1.0 - ov)) / max(pps[1], 1e-6)))
-        result.update(
-            {
-                "ok": False,
-                "px_per_step": pps,
-                "stride_xy": [
-                    int(max(STRIDE_MIN, min(STRIDE_MAX, sx))),
-                    int(max(STRIDE_MIN, min(STRIDE_MAX, sy))),
-                ],
-                "axis_sign": [-1, -1],
-            }
-        )
-        return result
+    finally:
+        if tuple(microscope.stage.position) != home:
+            microscope.stage.move_abs(home)
 
 
 def _get_cv2():
@@ -1473,16 +1419,6 @@ def _pair_paste_offset(ref, mov, expect_dx, expect_dy, level="full"):
     if sc < 0.12:
         return float(edx), float(edy), float(sc)
     return pdx, pdy, sc
-
-
-def _content_shift_cv(ref, mov, expect_dx, expect_dy, search_frac=0.5):
-    """Legacy name: return OpenCV-style content shift + score via strip NCC paste.
-
-    paste = -content_shift, so content_shift = -paste.
-    """
-    del search_frac
-    pdx, pdy, sc = _pair_paste_offset(ref, mov, expect_dx, expect_dy)
-    return -pdx, -pdy, sc
 
 
 def _normalize_align(align):
@@ -2109,7 +2045,6 @@ class MosaicScanState(object):
         self.draft_tile_w = None
         self.draft_tile_h = None
         self.draft_canvas = None  # (cw, ch)
-        self.draft_med = None
         self.empty_cells = set()  # (ix,iy) known empty/background (explore)
         self.slide_id = None
         self.slide_path = None
@@ -2167,7 +2102,6 @@ class ScanMosaicExtension(BaseExtension):
         self.add_view(CaptureListView, "/captures")
         self.add_view(LiveDetailsView, "/live_details")
         self.add_view(PreviewStitchView, "/latest_preview_stitch.jpg")
-        self.add_view(PreviewUiView, "/preview_ui")
         self.add_view(TileScanAPI, "/tile", endpoint="tile")
         self.add_view(AdaptiveAutofocusView, "/adaptive_autofocus", endpoint="adaptive_autofocus")
         self.add_view(RecaptureTileView, "/recapture_tile", endpoint="recapture_tile")
@@ -2244,6 +2178,7 @@ class ScanMosaicExtension(BaseExtension):
             "initial_xy": list(st.initial_xy) if st.initial_xy else None,
             "stride_size": list(st.stride_size) if st.stride_size else None,
             "px_per_step": list(st.px_per_step) if st.px_per_step else None,
+            "calibration": st.calib,
             "axis_sign": list(st.axis_sign) if st.axis_sign else [-1, -1],
             "last_grid": list(st.last_grid) if st.last_grid else None,
             "refined": bool(st.refined),
@@ -2299,6 +2234,7 @@ class ScanMosaicExtension(BaseExtension):
             st.stride_size = tuple(payload["stride_size"])
         if payload.get("px_per_step"):
             st.px_per_step = list(payload["px_per_step"])
+        st.calib = payload.get("calibration")
         if payload.get("axis_sign"):
             st.axis_sign = list(payload["axis_sign"])
         if payload.get("last_grid"):
@@ -2399,6 +2335,7 @@ class ScanMosaicExtension(BaseExtension):
         )
         if man.get("px_per_step"):
             st.px_per_step = list(man["px_per_step"])
+        st.calib = man.get("calibration")
         if man.get("axis_sign"):
             st.axis_sign = [int(man["axis_sign"][0]), int(man["axis_sign"][1])]
         if man.get("last_grid"):
@@ -2805,10 +2742,9 @@ class ScanMosaicExtension(BaseExtension):
             st.draft_canvas = (
                 (int(canvas[0]), int(canvas[1])) if canvas else None
             )
-            st.draft_med = cache.get("med")
 
     def _rule_grid_layout_payload(self):
-        """Stable overlapping layout (~30%) for Continue / occupancy-only sessions."""
+        """Use the scan geometry until the PC publishes a registered layout."""
         st = self.state
         nx = max(1, int(st.nx or 1))
         ny = max(1, int(st.ny or 1))
@@ -2822,12 +2758,15 @@ class ScanMosaicExtension(BaseExtension):
             for iy in range(min_iy, min_iy + ny):
                 for ix in range(min_ix, min_ix + nx):
                     keys.append((ix, iy))
-        overlap = 0.30
-        stride = 1.0 - overlap
-        canvas_w = 1.0 + (nx - 1) * stride
-        canvas_h = 1.0 + (ny - 1) * stride
-        tw = 1.0 / canvas_w
-        th = 1.0 / canvas_h
+        if st.stride_size and st.px_per_step:
+            overlap_x, overlap_y = overlap_for_stride(st.stride_size, st.px_per_step)
+        else:
+            overlap_x = overlap_y = DEFAULT_OVERLAP
+        stride_x = max(0.01, 1.0 - overlap_x)
+        stride_y = max(0.01, 1.0 - overlap_y)
+        canvas_w = 1.0 + (nx - 1) * stride_x
+        canvas_h = 1.0 + (ny - 1) * stride_y
+        tw, th = 1.0 / canvas_w, 1.0 / canvas_h
         tiles = []
         for ix, iy in keys:
             col = (min_ix + nx - 1 - ix) if ax < 0 else (ix - min_ix)
@@ -2836,8 +2775,8 @@ class ScanMosaicExtension(BaseExtension):
                 {
                     "ix": int(ix),
                     "iy": int(iy),
-                    "x": float(col) * stride / canvas_w,
-                    "y": float(row) * stride / canvas_h,
+                    "x": float(col) * stride_x / canvas_w,
+                    "y": float(row) * stride_y / canvas_h,
                     "w": tw,
                     "h": th,
                 }
@@ -2849,7 +2788,8 @@ class ScanMosaicExtension(BaseExtension):
             "tile_h": 1,
             "tiles": tiles,
             "rule_grid": True,
-            "overlap": overlap,
+            "overlap": (overlap_x + overlap_y) / 2,
+            "overlap_xy": [overlap_x, overlap_y],
         }
 
     def tile_layout_payload(self):
@@ -2988,127 +2928,15 @@ class ScanMosaicExtension(BaseExtension):
         if st.calib:
             out["calibration"] = st.calib
 
-        if not delete_tiles:
-            out["kept_tiles"] = True
-            if not stitch_ok:
-                logging.warning("Skipping tile cleanup because stage preview failed")
-                return out
-            logging.info(
-                "Scan complete: retained %s tiles for PC Worker registration",
-                len(cells),
-            )
-            st.phase = "done"
-            st.refined = False
-            out["auto_refined"] = False
+        out["kept_tiles"] = not delete_tiles
+        if not delete_tiles and stitch_ok:
             out["mac_refine"] = True
-            try:
-                self.save_session_state()
-            except Exception:
-                pass
-            return out
-
-        # Cleanup is deferred until the Mac has ingested and refined the tiles.
-        logging.info("Deferring tile cleanup until PC Worker refinement succeeds")
-        deleted = {"deleted": 0, "deferred": True}
-        out["deleted"] = (
-            deleted.get("deleted", 0) if isinstance(deleted, dict) else deleted
-        )
-        st.phase = "done" if stitch_ok else "error"
-        try:
-            self.save_session_state()
-        except Exception:
-            pass
-        return out
-
-    def refine_mosaic(self, microscope=None, raise_http=True):
-        """Heavy pairwise align + write final mosaic (user or auto after scan)."""
-        st = self.state
-        cells = {k: v[1] for k, v in st.best.items() if v and v[1]}
-        if not cells:
-            if raise_http:
-                abort(400, "No local tiles to refine (use PC Refine)")
-            raise ValueError("No local tiles to refine")
-        t0 = time.time()
-        st.phase = "refining"
-        st.refine_progress = 0
+        if delete_tiles:
+            logging.info("Deferring tile cleanup until PC Worker refinement succeeds")
         st.refined = False
-        slide_meta = None
-
-        def on_progress(pct):
-            st.refine_progress = int(pct)
-            try:
-                from labthings import update_action_progress
-
-                update_action_progress(int(pct))
-            except Exception:
-                pass
-
-        try:
-            on_progress(1)
-            cache = {}
-            engine = "legacy"
-            logging.info("Pi refine using light stitch (%s cells)", len(cells))
-            mosaic = stitch_cells(
-                cells,
-                st.nx,
-                st.ny,
-                REFINE_TILE_WIDTH,
-                align="fine" if st.draft_positions else "full",
-                stride_size=st.stride_size,
-                px_per_step=st.px_per_step,
-                progress_cb=on_progress,
-                prior_positions=st.draft_positions if getattr(st, "alignment_quality", {}).get("accepted") is not False else None,
-                prior_tile_w=st.draft_tile_w,
-                cache_out=cache,
-                axis_sign=getattr(st, "axis_sign", None),
-            )
-            self._store_draft_cache(cache)
-            polished = _polish_for_slide(mosaic)
-            # Update live mosaic (preview) with refined geometry
-            self.update_mosaic_image(
-                polished,
-                tags=["mosaic", "scan-refine", engine],
-                annotations={"phase": "refined", "engine": engine},
-                force=True,
-            )
-            slide_meta = self.save_refined_slide(microscope, polished)
-            del mosaic, polished
-            st.refined = True
-            st.phase = "done"
-            st.refine_progress = 100
-            on_progress(100)
-        except Exception:
-            logging.exception("refine mosaic failed")
-            st.phase = "error"
-            st.refine_progress = 0
-            if raise_http:
-                abort(500, "Refine failed")
-            raise
-        elapsed = time.time() - t0
-        return {
-            "ok": True,
-            "mosaic": st.mosaic_name,
-            "mosaic_id": st.mosaic_id,
-            "session_id": st.session_id,
-            "cells": len(cells),
-            "refined": True,
-            "slide_saved": bool(getattr(st, "slide_saved", False)),
-            "slide_id": getattr(st, "slide_id", None),
-            "slide_name": getattr(st, "slide_name", None),
-            "elapsed_s": round(elapsed, 2),
-            "preview": st.preview_path if os.path.isfile(st.preview_path) else None,
-            "nx": st.nx,
-            "ny": st.ny,
-            "stride_size": list(st.stride_size),
-            "px_per_step": list(st.px_per_step) if st.px_per_step else None,
-            "axis_sign": list(getattr(st, "axis_sign", [-1, -1]) or [-1, -1]),
-            "origin_xy": list(st.origin_xy) if st.origin_xy else None,
-            "min_ix": getattr(st, "min_ix", 0),
-            "min_iy": getattr(st, "min_iy", 0),
-            "last_grid": list(st.last_grid) if st.last_grid else None,
-            "refine_progress": 100,
-            "slide": slide_meta,
-        }
+        st.phase = "done" if stitch_ok or not delete_tiles else "error"
+        self.save_session_state()
+        return out
 
     def save_refined_slide(self, microscope, image):
         """Persist polished high-res slide to Gallery (kept after Scan close)."""
@@ -3390,7 +3218,6 @@ class ScanMosaicExtension(BaseExtension):
         st.draft_tile_w = None
         st.draft_tile_h = None
         st.draft_canvas = None
-        st.draft_med = None
         st.empty_cells = set()
         st.nx, st.ny = 1, 1
         st.min_ix = st.min_iy = 0
@@ -4616,7 +4443,7 @@ class ScanMosaicExtension(BaseExtension):
             except Exception:
                 basename = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-        requested_stride = args.get("stride_size") or [2000, 1500, 100]
+        requested_stride = args.get("stride_size") or FIXED_STRIDE
         grid = args.get("grid") or [3, 3, 1]
         # Clamp absurd grids
         try:
@@ -4633,14 +4460,8 @@ class ScanMosaicExtension(BaseExtension):
         if center_tile is None:
             center_tile = str(style).lower() == "spiral"
         center_tile = bool(center_tile)
-        auto_stride = args.get("auto_stride")
-        if auto_stride is None:
-            auto_stride = AUTO_STRIDE_DEFAULT
-        auto_stride = bool(auto_stride)
-        target_overlap = args.get("target_overlap")
-        if target_overlap is None:
-            target_overlap = DEFAULT_OVERLAP
-        target_overlap = float(target_overlap)
+        auto_stride = bool(args.get("auto_stride"))
+        target_overlap = float(args.get("target_overlap", DEFAULT_OVERLAP))
 
         # High-quality PC-backed scans use the camera's native still mode.
         # The Video Scout remains an explicit acquisition mode. An explicit
@@ -4735,21 +4556,6 @@ class ScanMosaicExtension(BaseExtension):
                     int(st.stride_size[1]),
                     int(st.stride_size[2]) if len(st.stride_size) > 2 else 100,
                 ]
-                if auto_stride and bool(args.get("recalibrate", False)):
-                    calib = calibrate_stride(
-                        microscope,
-                        target_overlap=target_overlap,
-                        probe_steps=CALIB_PROBE_STEPS,
-                        frame_size=resize if resize else SAFE_RESIZE,
-                    )
-                    st.calib = calib
-                    if calib.get("px_per_step"):
-                        st.px_per_step = list(calib["px_per_step"])
-                    if calib.get("axis_sign"):
-                        st.axis_sign = [int(calib["axis_sign"][0]), int(calib["axis_sign"][1])]
-                    if calib.get("stride_xy"):
-                        stride_size[0] = int(calib["stride_xy"][0])
-                        stride_size[1] = int(calib["stride_xy"][1])
                 initial = tuple(microscope.stage.position[:2])
                 st.initial_xy = [int(initial[0]), int(initial[1])]
                 st.last_grid = [
@@ -4848,35 +4654,17 @@ class ScanMosaicExtension(BaseExtension):
                     int(requested_stride[1]),
                     int(requested_stride[2]) if len(requested_stride) > 2 else 100,
                 ]
-                calib = None
-                if auto_stride:
-                    logging.info(
-                        "Pre-scan stride calibration (target_overlap=%.2f)...",
-                        target_overlap,
-                    )
-                    calib = calibrate_stride(
-                        microscope,
-                        target_overlap=target_overlap,
-                        probe_steps=CALIB_PROBE_STEPS,
-                        frame_size=resize if resize else SAFE_RESIZE,
-                    )
-                    st.calib = calib
-                    if calib.get("px_per_step"):
-                        st.px_per_step = list(calib["px_per_step"])
-                    if calib.get("axis_sign"):
-                        st.axis_sign = [int(calib["axis_sign"][0]), int(calib["axis_sign"][1])]
-                    if calib.get("stride_xy"):
-                        stride_size[0] = int(calib["stride_xy"][0])
-                        stride_size[1] = int(calib["stride_xy"][1])
-                        logging.info(
-                            "Using calibrated stride_size=%s (requested was %s)",
-                            stride_size,
-                            requested_stride,
-                        )
-                else:
-                    st.px_per_step = list(CAL_PX_PER_STEP)
-                    st.axis_sign = [-1, -1]
-                    logging.info("auto_stride=false; using requested stride %s", stride_size)
+                if auto_stride and (do_explore or max(grid[:2]) > 1):
+                    st.calib = calibrate_stride(microscope, target_overlap)
+                    if st.calib["ok"]:
+                        st.px_per_step = st.calib["px_per_step"]
+                        st.axis_sign = st.calib["axis_sign"]
+                        stride_size[:2] = st.calib["stride_xy"]
+                    else:
+                        st.calib["fallback_stride_xy"] = stride_size[:2]
+                        logging.warning("%s Using configured XY stride %s.",
+                                        st.calib["warning"], stride_size[:2])
+                logging.info("Scan XY stride=%s calibration=%s", stride_size[:2], st.calib)
 
                 initial = tuple(microscope.stage.position[:2])
                 st.initial_xy = [int(initial[0]), int(initial[1])]
@@ -5115,7 +4903,7 @@ class ScanMosaicExtension(BaseExtension):
                 "filename": kwargs.get("basename"),
                 "namemode": kwargs.get("namemode", "coordinates"),
                 "temporary": kwargs.get("temporary", False),
-                "stride_size": kwargs.get("stride_size", (2000, 1500, 100)),
+                "stride_size": kwargs.get("stride_size", FIXED_STRIDE),
                 "grid": kwargs.get("grid", (3, 3, 1)),
                 "style": kwargs.get("style", "snake"),
                 "autofocus_dz": kwargs.get("autofocus_dz", 2000),
@@ -5128,7 +4916,7 @@ class ScanMosaicExtension(BaseExtension):
                 "detect_empty_fields_and_skip_autofocus": kwargs.get(
                     "detect_empty_fields_and_skip_autofocus", False
                 ),
-                "auto_stride": kwargs.get("auto_stride", AUTO_STRIDE_DEFAULT),
+                "auto_stride": kwargs.get("auto_stride", False),
                 "target_overlap": kwargs.get("target_overlap", DEFAULT_OVERLAP),
                 "keep_tiles": kwargs.get("keep_tiles", False),
                 "mac_preview_only": kwargs.get("mac_preview_only", False),
@@ -5317,6 +5105,7 @@ class LiveDetailsView(PropertyView):
             "origin_xy": list(st.origin_xy) if st.origin_xy else None,
             "initial_xy": list(st.initial_xy) if st.initial_xy else None,
             "stride_size": list(st.stride_size) if st.stride_size else None,
+            "calibration": st.calib,
             "px_per_step": list(st.px_per_step) if st.px_per_step else None,
             "axis_sign": list(getattr(st, "axis_sign", [-1, -1]) or [-1, -1]),
             "min_ix": getattr(st, "min_ix", 0),
@@ -5349,119 +5138,53 @@ class PreviewStitchView(View):
         return send_file(path, mimetype="image/jpeg")
 
 
-class PreviewUiView(View):
-    """Minimal live-preview page (works without rebuilding the OF webapp)."""
-
-    def get(self):
-        html = """<!DOCTYPE html>
-<html lang="zh-CN"><head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>MicroWorld Live Stitch Preview</title>
-<style>
- body{margin:0;font-family:system-ui,sans-serif;background:#0f1419;color:#e8eef4}
- header{padding:12px 16px;border-bottom:1px solid #243040}
- .meta{color:#8b9aab;font-size:14px}
- main{padding:12px;display:flex;justify-content:center}
- img{max-width:100%;max-height:80vh;background:#000}
- .ph{padding:40px;color:#8b9aab}
-</style></head><body>
-<header>
- <div><b>Live stitching preview</b> (v3-style on v2)</div>
- <div class="meta" id="meta">loading…</div>
-</header>
-<main><div id="box" class="ph">Waiting for tiles…</div></main>
-<script>
-const meta=document.getElementById('meta');
-const box=document.getElementById('box');
-const base=location.pathname.replace(/\\/preview_ui\\/?$/,'');
-async function tick(){
-  try{
-    const r=await fetch(base+'/live_details',{cache:'no-store'});
-    const d=await r.json();
-    meta.textContent=`phase=${d.scan_phase||'-'} · tiles=${d.image_count||0} · cells=${d.cell_count||0} · ${d.name||''}`;
-    if(d.preview_ready && d.stitch_timestamp){
-      box.innerHTML=`<img src="${base}/latest_preview_stitch.jpg?t=${d.stitch_timestamp}" alt="preview"/>`;
-    }
-  }catch(e){ meta.textContent='offline / restarting'; }
-}
-tick(); setInterval(tick,1000);
-</script></body></html>"""
-        return Response(html, mimetype="text/html; charset=utf-8")
-
-
 def _tile_scan_args_class():
-    """Prefer OF TileScanArgs extended with mosaic options; fall back if needed."""
+    """Extend the installed OpenFlexure schema with MicroWorld options."""
+    center_by_default = False
     try:
         from openflexure_microscope.api.default_extensions.scan import TileScanArgs
+    except ImportError:
+        try:
+            from openflexure_microscope.api.v2.views.actions.camera import FullCaptureArgs
+        except ImportError:
+            logging.exception("OpenFlexure capture schema unavailable")
+            return None
 
-        class MosaicTileScanArgs(TileScanArgs):
-            style = fields.String(load_default="snake")
-            quality_autofocus = fields.Boolean(load_default=False)
-            auto_stride = fields.Boolean(load_default=AUTO_STRIDE_DEFAULT)
-            target_overlap = fields.Float(load_default=DEFAULT_OVERLAP)
-            keep_tiles = fields.Boolean(load_default=False)
-            append_session = fields.Boolean(load_default=False)
-            auto_refine = fields.Boolean(load_default=False)
-            fill_gaps = fields.Boolean(load_default=True)
-            explore = fields.Boolean(load_default=False)
-            recalibrate = fields.Boolean(load_default=False)
-            scan_focus_guard = fields.Boolean(load_default=True)
-            adaptive_focus_stack = fields.Boolean(load_default=ADAPTIVE_FOCUS_DEFAULT)
-            mac_preview_only = fields.Boolean(load_default=False)
-            explore_strategy = fields.String(load_default="boundary")
-            continuous_scan = fields.Boolean(load_default=False)
-            explore_max_cells = fields.Integer(load_default=EXPLORE_MAX_CELLS)
-            explore_max_radius = fields.Integer(load_default=EXPLORE_MAX_RADIUS)
-            center_tile = fields.Boolean(load_default=False)
-            # Continue-from-PC: which Mac archive to hydrate if Pi has no tiles
-            session_id = fields.String(load_default=None, allow_none=True)
-            view_id = fields.String(load_default=None, allow_none=True)
-
-        return MosaicTileScanArgs
-    except Exception:
-        logging.debug("Could not extend OF TileScanArgs", exc_info=True)
-
-    try:
-        from openflexure_microscope.api.v2.views.actions.camera import FullCaptureArgs
+        center_by_default = True
 
         class TileScanArgs(FullCaptureArgs):
-            quality_autofocus = fields.Boolean(load_default=False)
             namemode = fields.String(load_default="coordinates")
             grid = fields.List(fields.Integer(), load_default=[3, 3, 1])
-            style = fields.String(load_default="snake")
             autofocus_dz = fields.Integer(load_default=2000)
             fast_autofocus = fields.Boolean(load_default=True)
-            stride_size = fields.List(fields.Integer(), load_default=[2000, 1500, 100])
+            stride_size = fields.List(fields.Integer(), load_default=list(FIXED_STRIDE))
             detect_empty_fields_and_skip_autofocus = fields.Boolean(load_default=False)
-            auto_stride = fields.Boolean(load_default=AUTO_STRIDE_DEFAULT)
-            target_overlap = fields.Float(load_default=DEFAULT_OVERLAP)
-            keep_tiles = fields.Boolean(load_default=False)
-            append_session = fields.Boolean(load_default=False)
-            auto_refine = fields.Boolean(load_default=False)
-            fill_gaps = fields.Boolean(load_default=True)
-            explore = fields.Boolean(load_default=False)
-            recalibrate = fields.Boolean(load_default=False)
-            scan_focus_guard = fields.Boolean(load_default=True)
-            adaptive_focus_stack = fields.Boolean(load_default=ADAPTIVE_FOCUS_DEFAULT)
-            mac_preview_only = fields.Boolean(load_default=False)
-            explore_strategy = fields.String(load_default="boundary")
-            continuous_scan = fields.Boolean(load_default=False)
-            explore_max_cells = fields.Integer(load_default=EXPLORE_MAX_CELLS)
-            explore_max_radius = fields.Integer(load_default=EXPLORE_MAX_RADIUS)
-            center_tile = fields.Boolean(load_default=True)
-            session_id = fields.String(load_default=None, allow_none=True)
-            view_id = fields.String(load_default=None, allow_none=True)
 
-        return TileScanArgs
-    except Exception:
-        logging.exception("Could not build TileScanArgs")
-        return None
+    class MosaicTileScanArgs(TileScanArgs):
+        style = fields.String(load_default="snake")
+        quality_autofocus = fields.Boolean(load_default=False)
+        auto_stride = fields.Boolean(load_default=False)
+        target_overlap = fields.Float(load_default=DEFAULT_OVERLAP)
+        keep_tiles = fields.Boolean(load_default=False)
+        append_session = fields.Boolean(load_default=False)
+        auto_refine = fields.Boolean(load_default=False)
+        fill_gaps = fields.Boolean(load_default=True)
+        explore = fields.Boolean(load_default=False)
+        scan_focus_guard = fields.Boolean(load_default=True)
+        adaptive_focus_stack = fields.Boolean(load_default=ADAPTIVE_FOCUS_DEFAULT)
+        mac_preview_only = fields.Boolean(load_default=False)
+        explore_strategy = fields.String(load_default="boundary")
+        continuous_scan = fields.Boolean(load_default=False)
+        explore_max_cells = fields.Integer(load_default=EXPLORE_MAX_CELLS)
+        explore_max_radius = fields.Integer(load_default=EXPLORE_MAX_RADIUS)
+        center_tile = fields.Boolean(load_default=center_by_default)
+        session_id = fields.String(load_default=None, allow_none=True)
+        view_id = fields.String(load_default=None, allow_none=True)
+
+    return MosaicTileScanArgs
 
 
 TileScanArgsSchema = _tile_scan_args_class()
-
-
 
 
 class CalibrateScaleView(View):
@@ -5480,24 +5203,11 @@ class CalibrateScaleView(View):
         probe = int(body.get("probe_steps") or CALIB_PROBE_STEPS)
         probe = max(100, min(2500, probe))
         overlap = float(body.get("target_overlap") or DEFAULT_OVERLAP)
-        prev_phase = st.phase
+        if not 0.10 <= overlap <= 0.55:
+            abort(400, "Scan overlap must be between 10% and 55%.")
         self.extension.ensure_hardware_hooks()
         with self.extension.hardware.hold("calibrate", phase="calibrating"):
-            st.phase = "calibrating"
-            try:
-                calib = calibrate_stride(
-                    microscope,
-                    target_overlap=overlap,
-                    probe_steps=probe,
-                    frame_size=SAFE_RESIZE,
-                )
-                if calib.get("px_per_step"):
-                    st.px_per_step = list(calib["px_per_step"])
-                st.calib = calib
-                return calib
-            finally:
-                if st.phase == "calibrating":
-                    st.phase = prev_phase if prev_phase != "calibrating" else "idle"
+            return calibrate_stride(microscope, overlap, probe)
 
 
 class RefineView(ActionView):
@@ -5850,46 +5560,8 @@ class TileScanAPI(ActionView):
                 abort(400, "Video Scout needs a new scan and a radius of 1–5 tiles.")
             if not args.get("mac_preview_only") or not args.get("keep_tiles"):
                 abort(400, "Video Scout requires PC sync and retained source tiles.")
-        # OF TileScanArgs may strip unknown keys; recover from raw JSON
-        try:
-            from flask import request
-
-            raw = request.get_json(silent=True) or {}
-            if "auto_stride" in raw:
-                args["auto_stride"] = bool(raw["auto_stride"])
-            if "target_overlap" in raw:
-                args["target_overlap"] = float(raw["target_overlap"])
-            if "keep_tiles" in raw:
-                args["keep_tiles"] = bool(raw["keep_tiles"])
-            if "append_session" in raw:
-                args["append_session"] = bool(raw["append_session"])
-            if "session_id" in raw and raw.get("session_id"):
-                args["session_id"] = str(raw["session_id"])
-            if "view_id" in raw and raw.get("view_id"):
-                args["view_id"] = str(raw["view_id"])
-            if "auto_refine" in raw:
-                args["auto_refine"] = bool(raw["auto_refine"])
-            if "fill_gaps" in raw:
-                args["fill_gaps"] = bool(raw["fill_gaps"])
-            if "explore" in raw:
-                args["explore"] = bool(raw["explore"])
-            if "recalibrate" in raw:
-                args["recalibrate"] = bool(raw["recalibrate"])
-            if "style" in raw and raw.get("style"):
-                args["style"] = str(raw["style"])
-            if "center_tile" in raw:
-                args["center_tile"] = bool(raw["center_tile"])
-            if "adaptive_focus_stack" in raw:
-                args["adaptive_focus_stack"] = bool(raw["adaptive_focus_stack"])
-        except Exception:
-            logging.debug("Could not merge auto_stride from request", exc_info=True)
-
-        resize = args.get("resize", None)
-        if resize:
-            if ("width" in resize) and ("height" in resize):
-                args["resize"] = (int(resize["width"]), int(resize["height"]))
-            else:
-                abort(404)
+        if args.get("auto_stride") and not 0.10 <= args["target_overlap"] <= 0.55:
+            abort(400, "Scan overlap must be between 10% and 55%.")
 
         logging.info("Running MicroWorld mosaic tile scan...")
         try:

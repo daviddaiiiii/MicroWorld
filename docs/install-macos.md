@@ -3,7 +3,7 @@
 The preview supports Apple silicon Macs with macOS 14 or later. The Pi uses the shared OpenFlexure v2 extensions. The computer runs the PC Worker for registration, fusion, and its local Canvas library.
 
 1. Install the Pi extensions once using the [Pi installation guide](../pi_setup/README.md).
-2. Download [MicroWorld-0.1.9-macOS-arm64.zip](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.9/MicroWorld-0.1.9-macOS-arm64.zip) and the release checksum file. From the download directory run `shasum -a 256 MicroWorld-0.1.9-macOS-arm64.zip` and compare the result with the matching line.
+2. Download [MicroWorld-0.1.10-macOS-arm64.zip](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.10/MicroWorld-0.1.10-macOS-arm64.zip) and the release checksum file. From the download directory run `shasum -a 256 MicroWorld-0.1.10-macOS-arm64.zip` and compare the result with the matching line.
 3. Extract the entire **MicroWorld** folder to a writable location such as `~/Documents/MicroWorld`. Keep the launchers and `script/` beside `MicroWorld.app`.
 4. Open **MicroWorld.app** and allow Local Network access. The preview uses ad-hoc signing. If macOS asks for approval, use [Apple's instructions](https://support.apple.com/en-us/102445).
 5. In **Microscopes**, select the Pi and choose **Connect**. Use **Add by Address** if discovery misses it. For scan processing the Pi needs access to TCP port 18766 on the computer running the PC Worker.
