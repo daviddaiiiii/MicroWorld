@@ -103,7 +103,7 @@ except ImportError:
 
 EXTENSION_ID = "org.microworld.scan-mosaic"
 LEGACY_EXTENSION_ID = "org.openmhs.scan-mosaic"
-EXTENSION_VERSION = "1.17.0"
+EXTENSION_VERSION = "1.18.0"
 MICROGRAPHS = "/var/openflexure/data/micrographs"
 PREVIEW_DIR = "/var/openflexure/data/scan-mosaic"
 PREVIEW_NAME = "preview.jpg"
@@ -603,7 +603,7 @@ def _focus_load_frame(path):
         return frame.convert("RGB").copy()
 
 
-def _focus_save_frame(path, frame):
+def _focus_save_frame(path, frame, quality=90):
     """Atomically replace a tile with the fused frame."""
     temporary = str(path) + ".focus-tmp"
     # CaptureObject reload depends on the original OpenFlexure EXIF payload.
@@ -615,7 +615,7 @@ def _focus_save_frame(path, frame):
             exif = original.info.get("exif")
     except Exception:
         pass
-    save_kwargs = {"format": "JPEG", "quality": 90, "optimize": False}
+    save_kwargs = {"format": "JPEG", "quality": quality, "optimize": False}
     if exif:
         save_kwargs["exif"] = exif
     frame.save(temporary, **save_kwargs)
@@ -805,12 +805,64 @@ def _focus_fuse(frames, offsets):
     return output
 
 
+def _native_focus_frame(microscope):
+    buffer = io.BytesIO()
+    microscope.camera.capture(buffer, fmt="jpeg", use_video_port=False, resize=None, bayer=False)
+    buffer.seek(0)
+    with Image.open(buffer) as frame:
+        return frame.convert("RGB")
+
+
+def _fuse_native_focus(microscope, path, frames, offsets, position):
+    # Compute weights from small probes. Composite at sensor resolution with
+    # one source image and one accumulated image in memory at a time.
+    maps = [_focus_map(frames[offset]) for offset in offsets]
+    maximum = np.maximum.reduce(maps)
+    temperature = max(1.0, 0.03 * float(np.percentile(maximum, 95)))
+    total = np.zeros_like(maximum)
+    with Image.open(path) as baseline:
+        size = baseline.size
+    output = None
+    x, y, z = position
+    try:
+        for offset, local_map in zip(offsets, maps):
+            if _focus_action_stopped():
+                raise RuntimeError("Adaptive focus cancelled")
+            if offset == 0:
+                with Image.open(path) as baseline:
+                    source = baseline.convert("RGB")
+            else:
+                microscope.stage.move_abs((x, y, z + offset))
+                source = _native_focus_frame(microscope)
+            if source.size != size:
+                source.close()
+                raise ValueError("Focus frame size changed")
+            weights = _focus_box_blur(np.exp(np.clip((local_map-maximum)/temperature, -20, 0)), 1)
+            total += weights
+            if output is None:
+                output = source
+                continue
+            mask = Image.fromarray(np.uint8(np.clip(weights / total, 0, 1) * 255))
+            mask = mask.resize(size, Image.BILINEAR)
+            merged = Image.composite(source, output, mask)
+            mask.close()
+            source.close()
+            output.close()
+            output = merged
+        _focus_save_frame(path, output, quality=microscope.camera.jpeg_quality)
+    finally:
+        if output is not None:
+            output.close()
+        microscope.stage.move_abs(position)
+
+
 def adaptive_focus_capture(
     microscope,
     baseline_path=None,
     autofocus=None,
     autofocus_factory=None,
     autofocus_dz=2000,
+    native_resolution=False,
 ):
     """Classify one native Fast-AF tile and apply one targeted rescue.
 
@@ -822,7 +874,20 @@ def adaptive_focus_capture(
     """
     initial = list(microscope.stage.position)
     x, y, z0 = [int(value) for value in initial]
-    baseline = _focus_load_frame(baseline_path) if baseline_path else _focus_capture_frame(microscope)
+    if baseline_path and native_resolution:
+        with Image.open(baseline_path) as source:
+            baseline = _load_resized(source, SAFE_RESIZE[0]).resize(SAFE_RESIZE, Image.BILINEAR)
+    else:
+        baseline = _focus_load_frame(baseline_path) if baseline_path else _focus_capture_frame(microscope)
+
+    def save_best(frame, offset):
+        if not baseline_path:
+            return
+        if not native_resolution:
+            _focus_save_frame(baseline_path, frame)
+        elif offset:
+            with _native_focus_frame(microscope) as native:
+                _focus_save_frame(baseline_path, native, quality=microscope.camera.jpeg_quality)
     probe = {0: baseline}
     try:
         for offset in FOCUS_PROBE_OFFSETS:
@@ -910,8 +975,7 @@ def adaptive_focus_capture(
             if retry_report["stop_reason"] is None:
                 retry_report["stop_reason"] = "progressive-levels-complete"
             microscope.stage.move_abs(best_position)
-            if baseline_path:
-                _focus_save_frame(baseline_path, best_frame)
+            save_best(best_frame, best_position[2] - z0)
             report.update(
                 {
                     "method": "adaptive-progressive-fast-af-v1",
@@ -944,8 +1008,14 @@ def adaptive_focus_capture(
         # Compatibility path for callers that do not expose an AF factory.
         # Normal scan paths route uniform wins through progressive Fast AF.
         best_offset = int(report["best_plane_offsets"][0])
-        if baseline_path:
-            _focus_save_frame(baseline_path, probe[best_offset])
+        if native_resolution and best_offset:
+            microscope.stage.move_abs((x, y, z0 + best_offset))
+            try:
+                save_best(probe[best_offset], best_offset)
+            finally:
+                microscope.stage.move_abs((x, y, z0))
+        else:
+            save_best(probe[best_offset], best_offset)
         report.update(
             {
                 "method": "adaptive-uniform-rescue-v1",
@@ -975,9 +1045,12 @@ def adaptive_focus_capture(
         microscope.stage.move_abs((x, y, z0))
 
     offsets = [int(value) for value in FOCUS_STACK_OFFSETS]
-    fused = _focus_fuse([frames[offset] for offset in offsets], offsets)
-    if baseline_path:
-        _focus_save_frame(baseline_path, fused)
+    if native_resolution and baseline_path:
+        _fuse_native_focus(microscope, baseline_path, frames, offsets, (x, y, z0))
+    else:
+        fused = _focus_fuse([frames[offset] for offset in offsets], offsets)
+        if baseline_path:
+            _focus_save_frame(baseline_path, fused)
     report.update(
         {
             "method": "adaptive-tilt-stack-v1",
@@ -2657,6 +2730,7 @@ class ScanMosaicExtension(BaseExtension):
         autofocus=None,
         autofocus_factory=None,
         autofocus_dz=2000,
+        native_resolution=False,
     ):
         """Run the conditional Z-stack after native AF and before on_tile."""
         path = getattr(capture_obj, "file", None) or getattr(capture_obj, "path", None)
@@ -2670,6 +2744,7 @@ class ScanMosaicExtension(BaseExtension):
                 autofocus=autofocus,
                 autofocus_factory=autofocus_factory,
                 autofocus_dz=autofocus_dz,
+                native_resolution=native_resolution,
             )
             self._focus_reports[path] = report
             if report.get("progressive_af"):
@@ -3527,6 +3602,7 @@ class ScanMosaicExtension(BaseExtension):
                 autofocus=autofocus,
                 autofocus_factory=autofocus_factory,
                 autofocus_dz=autofocus_dz,
+                native_resolution=bool(args.get("native_resolution")),
             )
             try:
                 dataset = ckwargs.get("dataset")
@@ -4023,6 +4099,7 @@ class ScanMosaicExtension(BaseExtension):
                 autofocus=autofocus,
                 autofocus_factory=autofocus_factory,
                 autofocus_dz=autofocus_dz,
+                native_resolution=bool(args.get("native_resolution")),
             )
             try:
                 self.on_tile(microscope, result, ckwargs.get("dataset"))
@@ -4411,6 +4488,7 @@ class ScanMosaicExtension(BaseExtension):
                 autofocus=rescue_autofocus,
                 autofocus_factory=rescue_autofocus_factory,
                 autofocus_dz=autofocus_dz,
+                native_resolution=bool(args.get("native_resolution")),
             )
             try:
                 self.on_tile(microscope, result, ckwargs.get("dataset"))
@@ -4451,6 +4529,7 @@ class ScanMosaicExtension(BaseExtension):
                     autofocus=rescue_autofocus,
                     autofocus_factory=rescue_autofocus_factory,
                     autofocus_dz=autofocus_dz,
+                    native_resolution=bool(args.get("native_resolution")),
                 )
                 record_center(hub_result, list(microscope.stage.position), True)
                 completed += 1
@@ -4563,12 +4642,17 @@ class ScanMosaicExtension(BaseExtension):
             target_overlap = DEFAULT_OVERLAP
         target_overlap = float(target_overlap)
 
-        # PiCamera only appends Bayer data when capturing from the still port.
-        use_video_port = not bool(args.get("bayer", False))
-        if use_video_port and not bool(args.get("use_video_port", True)):
-            logging.warning(
-                "Forcing use_video_port=True for mosaic scan to avoid OOM on Pi"
-            )
+        # High-quality PC-backed scans use the camera's native still mode.
+        # The Video Scout remains an explicit acquisition mode. An explicit
+        # resize in Advanced Acquisition retains its requested video size.
+        native_resolution = bool(
+            args.get("mac_preview_only") and args.get("keep_tiles")
+            and not args.get("resize") and not args.get("bayer")
+            and not args.get("continuous_scan")
+            and not (explore and args.get("explore_strategy") == "video")
+        )
+        use_video_port = not (args.get("bayer") or native_resolution)
+        args = dict(args, use_video_port=use_video_port, native_resolution=native_resolution)
         resize = args.get("resize")
         if not resize:
             resize = SAFE_RESIZE
@@ -4579,8 +4663,9 @@ class ScanMosaicExtension(BaseExtension):
             resize = (1280, 960)
         if args.get("quality_autofocus"):
             resize = SAFE_RESIZE
-        if args.get("bayer"):
-            # Picamera's resize path omits the raw Bayer trailer.
+        if args.get("bayer") or native_resolution:
+            # Native stills are encoded by the camera without software scaling.
+            # PiCamera also requires this path for the optional Bayer trailer.
             resize = None
 
         def _run():
@@ -4868,6 +4953,7 @@ class ScanMosaicExtension(BaseExtension):
                     autofocus=rescue_autofocus,
                     autofocus_factory=rescue_autofocus_factory,
                     autofocus_dz=int(args.get("autofocus_dz") or 2000),
+                    native_resolution=bool(args.get("native_resolution")),
                 )
                 try:
                     dataset = ckwargs.get("dataset")
@@ -5136,6 +5222,7 @@ class HardwareStatusView(View):
         state["advanced_capture"] = True
         state["video_scout"] = True
         state["continuous_scan"] = True
+        state["native_resolution_scan"] = True
         state["focus_phase"] = getattr(scan, "focus_phase", "idle")
         state["bayer_scan"] = True
         state["stage_hook"] = bool(getattr(self.extension, "_stage_hardware_hook_ready", False))

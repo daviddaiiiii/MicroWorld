@@ -5,12 +5,12 @@ struct CanvasViewport<Content: View>: View {
     @Binding var zoom: Double
     var navigationEnabled = true
     var reset = 0
-    @ViewBuilder let content: (CGSize) -> Content
+    @ViewBuilder let content: (CGSize, CGSize) -> Content
     @State private var pan = CGSize.zero
 
     var body: some View {
         GeometryReader { geometry in
-            content(geometry.size)
+            content(geometry.size, pan)
                 .offset(pan)
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .background {

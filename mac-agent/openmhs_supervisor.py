@@ -619,8 +619,9 @@ class Handler(BaseHTTPRequestHandler):
 
                         import io
 
-                        width = max(96, min(640, int((qs.get("width") or ["320"])[0])))
+                        width = max(96, min(2048, int((qs.get("width") or ["320"])[0])))
                         with Image.open(p) as source:
+                            source.draft("RGB", (width, max(1, width * source.height // source.width)))
                             image = source.convert("RGB")
                             image.thumbnail((width, width), Image.Resampling.LANCZOS)
                             buf = io.BytesIO()

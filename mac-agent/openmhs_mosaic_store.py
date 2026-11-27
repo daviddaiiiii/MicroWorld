@@ -43,7 +43,7 @@ MAC_LIVE_PREVIEW_MIN_PENDING_TILES = 1
 # contract rather than a dependency on a particular viewer library.
 PYRAMID_TILE_SIZE = 256
 PYRAMID_TILE_OVERLAP = 1
-PYRAMID_JPEG_QUALITY = 84
+PYRAMID_JPEG_QUALITY = 91
 _pyramid_lock = threading.Lock()
 
 
@@ -351,6 +351,7 @@ def _build_mac_live_preview(
             16,
             min(
                 int(preview_tile_width(len(render_cells), nx, ny)),
+                320,
                 int(MAC_LIVE_PREVIEW_MAX_EDGE / float(side)),
             ),
         )
@@ -1109,15 +1110,18 @@ def _run_refine(session_id: str, align: str = "fine") -> None:
         # Register predicted overlaps on the Mac (OpenCV required).
         try:
             import importlib
+            from PIL import Image
 
             import openmhs_registration as _hq
 
             _hq = importlib.reload(_hq)
+            with Image.open(next(iter(cells.values()))) as source:
+                width = source.width
             mosaic = _hq.stitch_cells_hq(
                 render_cells,
                 int(man.get("nx") or 1),
                 int(man.get("ny") or 1),
-                REFINE_TILE_WIDTH,
+                width,
                 stride_size=man.get("stride_size"),
                 px_per_step=man.get("px_per_step"),
                 progress_cb=on_progress,

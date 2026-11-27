@@ -151,7 +151,7 @@ final class InstrumentStore {
                 "keep_tiles": true, "auto_refine": false, "tags": ["openmhs-scan", "microworld-native"],
             ]
             try await prepareMosaicScan(&body)
-            if id == nil && hardware?.continuous_scan == true {
+            if id == nil && hardware?.native_resolution_scan != true && hardware?.continuous_scan == true {
                 body["continuous_scan"] = true
                 body["resize"] = ["width": 1280, "height": 960]
             }

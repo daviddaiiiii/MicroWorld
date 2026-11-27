@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct NativeCanvasView: View {
+    @Environment(\.displayScale) private var displayScale
     @State var canvas: CanvasStore
     let instrument: InstrumentStore
     let close: () -> Void
@@ -87,7 +88,9 @@ struct NativeCanvasView: View {
         }
         .font(.body)
         .task { await canvas.watch() }
-        .task(id: canvas.zoom > 1 ? canvas.document?.revision : nil) { await canvas.loadPyramid() }
+        .task(id: canvas.live || canvas.showTiles || canvas.image == nil ? nil : canvas.document?.pyramid_revision) {
+            await canvas.loadPyramid()
+        }
         .fileImporter(isPresented: $importImage, allowedContentTypes: [.image]) { result in
             Task { await importFile(result) }
         }
@@ -211,16 +214,30 @@ struct NativeCanvasView: View {
     }
 
     private func tileSurface(_ doc: CanvasDocument, bounds: CanvasBounds) -> some View {
-        CanvasViewport(zoom: $canvas.zoom, reset: viewportReset) { viewport in
+        CanvasViewport(zoom: $canvas.zoom, reset: viewportReset) { viewport, pan in
             let scale = max(0.01, min(viewport.width / max(1, bounds.w), viewport.height / max(1, bounds.h)) * canvas.zoom)
+            let visible = CGRect(
+                x: (bounds.w * scale - viewport.width) / 2 - pan.width,
+                y: (bounds.h * scale - viewport.height) / 2 - pan.height,
+                width: viewport.width, height: viewport.height
+            )
+            let current = doc.tiles.filter { tile in
+                guard tile.hidden != true else { return false }
+                let rect = CGRect(x: (tile.x - bounds.x) * scale, y: (tile.y - bounds.y) * scale,
+                                  width: tile.w * scale, height: tile.h * scale)
+                return visible.intersects(rect)
+            }
             Group {
                 ZStack(alignment: .topLeading) {
                     Color.black
-                    ForEach(doc.tiles.filter { $0.hidden != true }) { tile in
+                    ForEach(canvas.live ? Array(current.suffix(24)) : current) { tile in
                         let chosen = tile.id == canvas.selected
                         let rect = CGRect(x: (tile.x - bounds.x) * scale, y: (tile.y - bounds.y) * scale,
                                           width: tile.w * scale, height: tile.h * scale)
-                        AsyncImage(url: canvas.tileURL(tile, sharp: chosen || canvas.zoom > 2)) { picture in
+                        let target = max(rect.width, rect.height) * displayScale
+                        let width = canvas.live ? 320 : chosen || target > 1280 ? 2048 :
+                            target > 640 ? 1280 : target > 320 ? 640 : 320
+                        AsyncImage(url: canvas.tileURL(tile, width: width)) { picture in
                             picture.resizable().interpolation(.medium)
                         } placeholder: { Color.white.opacity(0.06) }
                         .opacity(tile.opacity ?? 1)

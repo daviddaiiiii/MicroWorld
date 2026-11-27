@@ -96,9 +96,9 @@ change(studio, '''          `${this.baseUri}/api/v2/extensions/org.microworld.sc
             ? `/mosaic/${encodeURIComponent(this.session)}/canvas`
             : `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/recapture`,
           { ...body, operation: "canvas", session_id: this.session },''')
-change(studio, '      const suffix = full ? "" : "&thumb=1&width=320";', '''      const suffix = full ? "" : "&thumb=1&width=320";
+change(studio, '      const suffix = full ? "" : `&thumb=1&width=${width}`;', '''      const suffix = full ? "" : `&thumb=1&width=${width}`;
       if ((window.__MICROWORLD__ && window.__MICROWORLD__.localWorker) || new URLSearchParams(window.location.search).has("slide")) {
-        return `/mosaic/${encodeURIComponent(this.session)}/tile?ix=${encodeURIComponent(t.ix)}&iy=${encodeURIComponent(t.iy)}&r=${encodeURIComponent(revision || 0)}${suffix}`;
+        return `/mosaic/${encodeURIComponent(this.session)}/tile?ix=${encodeURIComponent(t.ix)}&iy=${encodeURIComponent(t.iy)}&r=${encodeURIComponent(t.content_revision || revision || 0)}${suffix}`;
       }''')
 change(index, "</body>", '''    <script>
       const mwQuery = new URLSearchParams(window.location.search);

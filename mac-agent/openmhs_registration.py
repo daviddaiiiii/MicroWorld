@@ -545,58 +545,55 @@ def _focus_weights(tiles):
 def stitch_cells_hq(cells,nx,ny,tile_w=640,stride_size=None,px_per_step=None,
                     axis_sign=None,cache_out=None,progress_cb=None,
                     grid_coordinates=None,registration_max_width=None,**kwargs):
-    # Never upsample past source resolution merely to advertise a larger Slide.
-    with Image.open(next(iter(cells.values()))) as first: width=min(tile_w,first.width)
-    tiles={}
-    for key,path in cells.items():
-        with Image.open(path) as im:
-            im=im.convert('RGB');tiles[key]=np.asarray(im.resize((width,round(im.height*width/im.width))))
-    h,w=next(iter(tiles.values())).shape[:2]
-    scale=w/640.
-    pps=px_per_step or [.1437,.1344]
-    gx,gy=([abs(stride_size[i])*pps[i]*scale for i in (0,1)]
-           if stride_size is not None else [w*.7,h*.7])
-    # Estimate at benchmarked resolution; render using the original tile pixels.
-    max_registration_width = int(
-        registration_max_width or HQ_REGISTRATION_MAX_WIDTH
+    with Image.open(next(iter(cells.values()))) as first:
+        width = min(int(tile_w), first.width)
+        aspect = first.height / first.width
+
+    def decode(size):
+        tiles = {}
+        for key, path in cells.items():
+            with Image.open(path) as image:
+                image.draft("RGB", size)
+                tiles[key] = np.asarray(image.convert("RGB").resize(size, getattr(Image, 'Resampling', Image).LANCZOS))
+        return tiles
+
+    reg_w = min(width, int(registration_max_width or HQ_REGISTRATION_MAX_WIDTH))
+    reg_h = max(1, round(reg_w * aspect))
+    scale = reg_w / 640.0
+    pps = px_per_step or [.1437, .1344]
+    gx, gy = (
+        [abs(stride_size[i]) * pps[i] * scale for i in (0, 1)]
+        if stride_size is not None else [reg_w * .7, reg_h * .7]
     )
-    registration_scale=min(1.,max_registration_width/float(w))
-    registration_tiles={k:cv2.resize(v,(round(w*registration_scale),round(h*registration_scale)),
-                                    interpolation=cv2.INTER_AREA)
-                        for k,v in tiles.items()} if registration_scale<1 else tiles
-    registration_coords = {
-        k: tuple(v) for k, v in (grid_coordinates or {}).items() if k in registration_tiles
-    }
-    positions,diagnostics=register_overlap_graph(
-        registration_tiles,
-        gx*registration_scale,
-        gy*registration_scale,
-        axis_sign or [-1,-1],
-        grid_coordinates=registration_coords,
+    registration_tiles = decode((reg_w, reg_h))
+    positions, diagnostics = register_overlap_graph(
+        registration_tiles, gx, gy, axis_sign or [-1, -1],
+        grid_coordinates={k: tuple(v) for k, v in (grid_coordinates or {}).items()
+                          if k in registration_tiles},
         asset_keys=kwargs.get("asset_keys"),
     )
-    positions={k:(v[0]/registration_scale,v[1]/registration_scale) for k,v in positions.items()}
-    diagnostics['registration_scale']=registration_scale
-    if progress_cb:progress_cb(75)
-    minx,miny=np.min(list(positions.values()),axis=0)
-    positions={k:(v[0]-minx,v[1]-miny) for k,v in positions.items()}
-    cw=int(np.ceil(max(v[0] for v in positions.values())+w));ch=int(np.ceil(max(v[1] for v in positions.values())+h))
-    # Bound renderer memory for larger grids; retain the full-resolution original tiles.
-    if max(cw,ch)>4800 and width>64:
-        return stitch_cells_hq(
-            cells,
-            nx,
-            ny,
-            max(64,int(width*4800/max(cw,ch))),
-            stride_size,
-            px_per_step,
-            axis_sign,
-            cache_out,
-            progress_cb,
-            grid_coordinates=grid_coordinates,
-            registration_max_width=max_registration_width,
-            **kwargs,
-        )
+    if progress_cb:
+        progress_cb(75)
+    minx, miny = np.min(list(positions.values()), axis=0)
+    maxx, maxy = np.max(list(positions.values()), axis=0)
+    # Plan the memory budget before decoding full-size tiles. Very large jobs
+    # retain their native JPEGs even when the fused overview has a lower ceiling.
+    edge = max(maxx - minx + reg_w, maxy - miny + reg_h)
+    ratio = min(width / reg_w, 4800 / edge,
+                np.sqrt(40_000_000 / (len(cells) * reg_w * reg_h)))
+    w = max(1, int(np.floor(reg_w * ratio + 1e-8)))
+    h = max(1, round(w * aspect))
+    ratio = w / reg_w
+    positions = {key: ((x - minx) * ratio, (y - miny) * ratio)
+                 for key, (x, y) in positions.items()}
+    diagnostics["registration_scale"] = reg_w / w
+    cw = int(np.ceil(max(x for x, _ in positions.values()) + w))
+    ch = int(np.ceil(max(y for _, y in positions.values()) + h))
+    if (w, h) == (reg_w, reg_h):
+        tiles = registration_tiles
+    else:
+        del registration_tiles
+        tiles = decode((w, h))
     # Photometric correction and focus-aware weights happen only at render
     # time.  Acquisition bytes remain immutable and can still be inspected in
     # Tiles view or used for a later re-render with different policy.

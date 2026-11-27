@@ -48,6 +48,7 @@ struct AcquisitionStatus: Decodable {
     let advanced_capture: Bool?
     let bayer_scan: Bool?
     let continuous_scan: Bool?
+    let native_resolution_scan: Bool?
     let focus_phase: String?
 }
 

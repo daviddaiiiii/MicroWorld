@@ -93,6 +93,7 @@ struct CanvasDocument: Codable {
     var refine_phase: String?
     var refined: Bool?
     var deferred_load: Bool?
+    var pyramid_revision: String?
     var slide: String?
 }
 
@@ -219,7 +220,7 @@ final class CanvasStore {
         notice = ""
     }
 
-    func tileURL(_ tile: CanvasLayer, sharp: Bool = false) -> URL? {
+    func tileURL(_ tile: CanvasLayer, width: Int = 320) -> URL? {
         if let raw = tile.url, let url = URL(string: raw, relativeTo: Runtime.origin),
            url.host == Runtime.origin.host && url.port == Runtime.origin.port {
             return url
@@ -231,11 +232,11 @@ final class CanvasStore {
                 URLQueryItem(name: "id", value: tile.id),
                 URLQueryItem(name: "revision", value: String(document?.revision ?? 0)),
                 URLQueryItem(name: "capture", value: tile.content_revision),
-                URLQueryItem(name: "width", value: sharp ? "2048" : "320"),
+                URLQueryItem(name: "width", value: String(min(width, 2048))),
             ]
             return route.url
         }
-        let detail = sharp ? "" : "&thumb=1&width=320"
+        let detail = width > 1280 ? "" : "&thumb=1&width=\(width)"
         let capture = tile.content_revision ?? "original"
         return api.localPath("/mosaic/\(id)/tile?ix=\(tile.ix)&iy=\(tile.iy)&r=\(document?.revision ?? 0)&capture=\(capture)\(detail)")
     }
@@ -353,9 +354,10 @@ final class CanvasStore {
 
     func loadPyramid() async {
         pyramid = nil
-        guard let document, document.layered != true, document.adjustments == CanvasAdjustments(),
+        guard let document, document.pyramid_revision != nil,
+              document.layered != true, document.adjustments == CanvasAdjustments(),
               document.tiles.allSatisfy({ $0.adjustments == nil && $0.hidden != true }),
-              image != nil, !showTiles, !live, zoom > 1 else { return }
+              image != nil, !showTiles, !live else { return }
         do {
             let info: SlidePyramid.Info = try await api.read("/mosaic/\(id)/pyramid/info.json", local: true)
             try Task.checkCancellation()

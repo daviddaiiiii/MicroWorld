@@ -22,7 +22,7 @@ struct NativeImageSurface: View {
     @State private var stroke: [CGPoint] = []
 
     var body: some View {
-        CanvasViewport(zoom: interactiveZoom ?? .constant(zoom), navigationEnabled: !drawing && interactiveZoom != nil, reset: resetViewport) { viewport in
+        CanvasViewport(zoom: interactiveZoom ?? .constant(zoom), navigationEnabled: !drawing && interactiveZoom != nil, reset: resetViewport) { viewport, _ in
             let aspect = max(0.001, image.size.width / max(1, image.size.height))
             let width = max(1, min(viewport.width, viewport.height * aspect) * zoom)
             let height = width / aspect

@@ -264,6 +264,10 @@ def _published_slide(sid):
             output = io.BytesIO()
             im.convert('RGB').save(output, format='JPEG', quality=90)
             return output.getvalue()
+    if refined.is_file():
+        with Image.open(refined) as image:
+            if max(image.size) <= store.MAC_LIVE_PREVIEW_MAX_EDGE:
+                return refined.read_bytes()
     path = folder / 'preview.jpg'
     if not path.is_file() or path.stat().st_size <= 32:
         return None
@@ -478,6 +482,7 @@ def _load_response(sid, locked):
                     doc,
                     locked=locked,
                     refined=True,
+                    pyramid_revision=str(manifest.get('preview_revision') or 'refined'),
                     slide=data_url(fused),
                     bounds=_canvas_bounds(doc),
                 )

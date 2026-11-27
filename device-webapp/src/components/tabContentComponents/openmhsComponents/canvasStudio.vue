@@ -155,18 +155,28 @@
               :style="box(selectionRect)"
             />
             <div v-if="vpRect" class="vp-selection" :style="box(vpRect)" />
-            <img
-              v-if="mode === 'slide' && slide"
-              :src="slide"
-              class="slide"
-              :style="box(bounds)"
-              draggable="false"
-              alt="Merged canvas"
-              @click.stop="slideToTile"
-            />
+            <template v-if="mode === 'slide' && slide">
+              <img
+                :src="slide"
+                class="slide"
+                :style="box(bounds)"
+                draggable="false"
+                alt="Merged canvas"
+                @click.stop="slideToTile"
+              />
+              <img
+                v-for="part in slideParts"
+                :key="part.url"
+                :src="part.url"
+                class="slide-detail"
+                :style="box(part)"
+                draggable="false"
+                alt=""
+              />
+            </template>
             <template v-else>
               <div
-                v-for="t in visible"
+                v-for="t in viewTiles"
                 :key="t.id"
                 class="tile"
                 :class="{ selected: selectedIds.includes(t.id) }"
@@ -179,8 +189,8 @@
                 @pointerleave="hoverTile = null"
               >
                 <img
-                  v-if="t.url"
-                  :src="t.url"
+                  v-if="tileDisplayUrl(t)"
+                  :src="tileDisplayUrl(t)"
                   draggable="false"
                   alt="Adjusted tile (original preserved)"
                 />
@@ -413,6 +423,8 @@ export default {
       selectionRect: null,
       deleteDialog: false,
       slide: "",
+      pyramid: null,
+      viewport: { w: 0, h: 0 },
       bounds: { x: 0, y: 0, w: 1, h: 1 },
       view: { x: 0, y: 0, scale: 1 },
       drag: null,
@@ -485,6 +497,66 @@ export default {
     visible() {
       return this.doc ? this.doc.tiles.filter(t => !t.hidden) : [];
     },
+    worldViewport() {
+      const { x, y, scale } = this.view;
+      return {
+        x: -x / scale,
+        y: -y / scale,
+        w: this.viewport.w / scale,
+        h: this.viewport.h / scale
+      };
+    },
+    viewTiles() {
+      const r = this.worldViewport;
+      return this.visible.filter(t => t.x + t.w > r.x && t.y + t.h > r.y &&
+        t.x < r.x + r.w && t.y < r.y + r.h);
+    },
+    pyramidKey() {
+      return this.doc && !this.locked && !this.slideStale && this.mode === "slide"
+        ? this.doc.pyramid_revision : null;
+    },
+    slideParts() {
+      const info = this.pyramid;
+      if (!this.pyramidKey || !info || !info.levels.length || !this.viewport.w)
+        return [];
+      const b = this.bounds, r = this.worldViewport;
+      const target = b.w * this.view.scale * (window.devicePixelRatio || 1);
+      const levels = info.levels;
+      let index = levels.findIndex(level => level.width >= target);
+      if (index < 0) index = levels.length - 1;
+      const size = info.tile_size, overlap = info.tile_overlap || 0;
+      const range = level => {
+        const px = level.width / b.w, py = level.height / b.h;
+        return {
+          x0: Math.max(0, Math.floor((r.x-b.x)*px/size)),
+          y0: Math.max(0, Math.floor((r.y-b.y)*py/size)),
+          x1: Math.min(level.tiles_x, Math.ceil((r.x+r.w-b.x)*px/size)),
+          y1: Math.min(level.tiles_y, Math.ceil((r.y+r.h-b.y)*py/size))
+        };
+      };
+      let level = levels[index], rTiles = range(level);
+      while (index > 0 && (rTiles.x1-rTiles.x0)*(rTiles.y1-rTiles.y0) > 64) {
+        level = levels[--index];
+        rTiles = range(level);
+      }
+      const revision = encodeURIComponent(info.revision);
+      const parts = [];
+      for (let y = rTiles.y0; y < rTiles.y1; y++) {
+        for (let x = rTiles.x0; x < rTiles.x1; x++) {
+          const x0 = Math.max(0, x*size-overlap), y0 = Math.max(0, y*size-overlap);
+          const x1 = Math.min(level.width, (x+1)*size+overlap);
+          const y1 = Math.min(level.height, (y+1)*size+overlap);
+          parts.push({
+            x: b.x + x0 / level.width * b.w,
+            y: b.y + y0 / level.height * b.h,
+            w: (x1-x0) / level.width * b.w,
+            h: (y1-y0) / level.height * b.h,
+            url: this.pyramidUrl("tile", `level=${level.level}&x=${x}&y=${y}&r=${revision}`)
+          });
+        }
+      }
+      return parts;
+    },
     hidden() {
       return this.doc ? this.doc.tiles.filter(t => t.hidden) : [];
     },
@@ -495,6 +567,10 @@ export default {
     }
   },
   watch: {
+    pyramidKey(next) {
+      this.pyramid = null;
+      if (next) this.loadSlidePyramid(next);
+    },
     scanning(v) {
       if (v) {
         // A new scan/Continue invalidates the previously published Slide.
@@ -517,7 +593,8 @@ export default {
     this._finalSlideLoaded = false;
     this._finalSlideLoadInFlight = false;
     this._awaitingFinalSlide = this.scanning;
-    this._resizeObserver = new ResizeObserver(() => {
+    this._resizeObserver = new ResizeObserver(([entry]) => {
+      this.viewport = { w: entry.contentRect.width, h: entry.contentRect.height };
       if (!this.drag) this.fit();
     });
     this._resizeObserver.observe(this.$refs.viewport);
@@ -572,6 +649,31 @@ export default {
     if (this._resizeObserver) this._resizeObserver.disconnect();
   },
   methods: {
+    async loadSlidePyramid(key) {
+      try {
+        const { data } = await axios.get(this.pyramidUrl("info.json", `r=${encodeURIComponent(key)}`), { timeout: 30000 });
+        if (this.pyramidKey === key && data.width && data.tile_size && Array.isArray(data.levels)) {
+          this.pyramid = data;
+        }
+      } catch (_) {
+        // The overview remains visible if detailed images are unavailable.
+      }
+    },
+    pyramidUrl(suffix, query) {
+      const sid = encodeURIComponent(this.session);
+      if (window.__MICROWORLD__ && window.__MICROWORLD__.localWorker) {
+        return `/mosaic/${sid}/pyramid/${suffix}?${query}`;
+      }
+      return `${this.baseUri}/api/v2/extensions/org.microworld.scan-mosaic/mac/pyramid/${suffix}?session_id=${sid}&${query}`;
+    },
+    tileDisplayUrl(tile) {
+      if (this.locked || (tile.url && tile.url.startsWith("data:"))) return tile.url;
+      if (tile.asset) return tile.url;
+      const target = Math.max(tile.w, tile.h) * this.view.scale * (window.devicePixelRatio || 1);
+      const width = this.selectedIds.includes(tile.id) || target > 1280
+        ? null : target > 640 ? 1280 : target > 320 ? 640 : 320;
+      return this.rawTileUrl(tile, this.doc.revision, width === null, width || 320);
+    },
     withLiveTileUrls(d, preserveSlide = false) {
       const previous = this.doc
         ? new Map(this.doc.tiles.map(t => [t.id, t]))
@@ -1126,15 +1228,15 @@ export default {
       this._apiFlights[flightKey] = wrapped;
       return wrapped;
     },
-    rawTileUrl(t, revision, full = false) {
-      const suffix = full ? "" : "&thumb=1&width=320";
+    rawTileUrl(t, revision, full = false, width = 320) {
+      const suffix = full ? "" : `&thumb=1&width=${width}`;
       return `${
         this.baseUri
       }/api/v2/extensions/org.microworld.scan-mosaic/mac/tile?session_id=${encodeURIComponent(
         this.session
       )}&ix=${encodeURIComponent(t.ix)}&iy=${encodeURIComponent(
         t.iy
-      )}&r=${encodeURIComponent(revision || 0)}${suffix}`;
+      )}&r=${encodeURIComponent(t.content_revision || revision || 0)}${suffix}`;
     },
     message(e) {
       return (
@@ -1821,13 +1923,17 @@ nav button.active {
   transform-origin: 0 0;
 }
 .tile,
-.slide {
+.slide,
+.slide-detail {
   position: absolute;
   max-width: none;
   user-select: none;
 }
 .slide {
   cursor: pointer;
+}
+.slide-detail {
+  pointer-events: none;
 }
 .tile img {
   width: 100%;
