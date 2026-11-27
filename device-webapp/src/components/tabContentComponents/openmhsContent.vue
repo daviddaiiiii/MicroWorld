@@ -62,7 +62,7 @@
         </div>
       </div>
     </header>
-    <div v-if="hardwareBusy" class="hardware-lock-hint" @pointerdown.stop>
+    <div v-if="hardwareBusy && !studioSession" class="hardware-lock-hint" @pointerdown.stop>
       Microscope busy · {{ hardwareOperation }}
     </div>
     <div
@@ -5417,6 +5417,9 @@ export default {
 }
 .openmhs-root.canvas-open ::v-deep .agent-tool-root {
   z-index: 100;
+}
+.openmhs-root.canvas-open ::v-deep .codex-status-panel {
+  display: none;
 }
 .openmhs-root .hud-scan-bar .display-mode,
 .openmhs-root .hud-scan-bar .scan-hint {

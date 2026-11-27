@@ -255,10 +255,10 @@ def _finalize_after_sync(sid: str) -> None:
             read_manifest,
             refine_status,
             start_refine,
-            sync_pull_incremental,
         )
 
-        if not sync_pull_incremental(sid).get("sync", {}).get("complete"):
+        sync = read_manifest(sid).get("sync") or {}
+        if sync.get("phase") != "done" or not sync.get("complete"):
             raise RuntimeError("Waiting for all retained tile revisions to sync")
         # Pi publishes only a stage-coordinate preview. The complete
         # registration/fusion belongs on the Mac, where memory and OpenCV are
@@ -384,7 +384,7 @@ def maybe_sync_scan() -> None:
             return
 
     try:
-        result = sync_pull_incremental(sid)
+        result = sync_pull_incremental(sid, details=details)
         sync = result.get("sync") or {}
         LOG.info(
             "PC Worker sync %s phase=%s tiles=%s/%s new=%s",

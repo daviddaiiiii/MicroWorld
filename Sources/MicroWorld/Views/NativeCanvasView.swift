@@ -70,10 +70,14 @@ struct NativeCanvasView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(status)
+                    .layoutPriority(1)
                     .foregroundStyle(canvas.error.isEmpty ? Color.secondary : Color.orange)
                 Spacer()
                 if let doc = canvas.document {
-                    Text("\(doc.tiles.count) tiles").monospacedDigit().foregroundStyle(.secondary)
+                    Text("\(doc.tiles.count) tiles")
+                        .monospacedDigit()
+                        .fixedSize()
+                        .foregroundStyle(.secondary)
                 }
             }
             .font(.callout)
@@ -111,6 +115,24 @@ struct NativeCanvasView: View {
     }
 
     private var toolbar: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) {
+                canvasNavigation
+                Spacer(minLength: 0)
+                canvasActions
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                canvasNavigation
+                canvasActions
+            }
+        }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 5)
+        .frame(minHeight: 46)
+    }
+
+    private var canvasNavigation: some View {
         HStack(spacing: 9) {
             Button(action: close) { Label("Camera", systemImage: "chevron.left") }
                 .help("Return to the live camera")
@@ -130,7 +152,11 @@ struct NativeCanvasView: View {
                 drawing.toggle()
             } label: { Label("Mark ROI", systemImage: "viewfinder") }
                 .disabled(canvas.showTiles || canvas.image == nil || canvas.live)
-            Spacer()
+        }
+    }
+
+    private var canvasActions: some View {
+        HStack(spacing: 9) {
             Button { canvas.zoom = max(0.1, canvas.zoom / 1.35) } label: { Image(systemName: "minus.magnifyingglass") }
                 .help("Zoom out")
             Button { canvas.zoom = 1; viewportReset += 1 } label: { Text("Fit") }
@@ -153,9 +179,6 @@ struct NativeCanvasView: View {
             } label: { Image(systemName: "ellipsis.circle").accessibilityLabel("Canvas actions") }
             Button { inspector.toggle() } label: { Image(systemName: "sidebar.right") }.help("Toggle Layers")
         }
-        .buttonStyle(.borderless)
-        .padding(.horizontal, 16)
-        .frame(height: 46)
     }
 
     @ViewBuilder private var surface: some View {

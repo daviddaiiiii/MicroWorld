@@ -12,24 +12,24 @@
     @drop.prevent.stop
   >
     <header>
-      <div class="identity">
-        <span class="eyebrow">MicroWorld</span><strong>Canvas</strong>
+      <div class="header-start">
+        <strong class="canvas-title">Canvas</strong>
+        <nav aria-label="Canvas view">
+          <button
+            :disabled="locked"
+            :class="{ active: mode === 'slide' }"
+            @click="setMode('slide')"
+          >
+            Slide</button
+          ><button
+            :disabled="locked"
+            :class="{ active: mode === 'tiles' }"
+            @click="setMode('tiles')"
+          >
+            Tiles
+          </button>
+        </nav>
       </div>
-      <nav aria-label="Canvas view">
-        <button
-          :disabled="locked"
-          :class="{ active: mode === 'slide' }"
-          @click="setMode('slide')"
-        >
-          Slide</button
-        ><button
-          :disabled="locked"
-          :class="{ active: mode === 'tiles' }"
-          @click="setMode('tiles')"
-        >
-          Tiles
-        </button>
-      </nav>
       <fieldset class="actions" :disabled="locked || busy || !!activeFovJob">
         <button
           class="icon-action"
@@ -37,7 +37,10 @@
           aria-label="Continue canvas"
           @click="$emit('continue')"
         >
-          <i class="material-icons">add_to_photos</i>
+          <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="7" y="3" width="14" height="14" rx="2" />
+            <path d="M3 7v12a2 2 0 0 0 2 2h12M14 7v6m-3-3h6" />
+          </svg>
         </button>
         <button
           :disabled="busy || vpBusy"
@@ -67,33 +70,39 @@
           Adjust
         </button>
       </fieldset>
-      <button
-        class="icon-action"
-        :title="showFov ? 'Hide live FOV' : 'Show live FOV'"
-        :aria-label="showFov ? 'Hide live FOV' : 'Show live FOV'"
-        @click="$emit('toggle-fov')"
-      >
-        <i class="material-icons">{{
-          showFov ? "visibility" : "visibility_off"
-        }}</i>
-      </button>
-      <button
-        class="icon-action"
-        title="Camera"
-        aria-label="Camera"
-        @click="close"
-      >
-        <i class="material-icons">arrow_back</i>
-      </button>
-      <button
-        class="icon-action"
-        title="Close canvas"
-        aria-label="Close canvas"
-        :disabled="busy || locked || !!activeFovJob"
-        @click="$emit('dismiss')"
-      >
-        ×
-      </button>
+      <div class="header-end">
+        <button
+          class="icon-action"
+          :title="showFov ? 'Hide live FOV' : 'Show live FOV'"
+          :aria-label="showFov ? 'Hide live FOV' : 'Show live FOV'"
+          @click="$emit('toggle-fov')"
+        >
+          <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+            <circle cx="12" cy="12" r="2.5" />
+            <path v-if="!showFov" d="m4 4 16 16" />
+          </svg>
+        </button>
+        <button
+          class="icon-action"
+          title="Camera"
+          aria-label="Camera"
+          @click="close"
+        >
+          <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m11 5-7 7 7 7m-7-7h16" />
+          </svg>
+        </button>
+        <button
+          class="icon-action"
+          title="Close canvas"
+          aria-label="Close canvas"
+          :disabled="busy || locked || !!activeFovJob"
+          @click="$emit('dismiss')"
+        >
+          ×
+        </button>
+      </div>
       <input
         ref="file"
         type="file"
@@ -114,10 +123,7 @@
       >
         <div
           class="world"
-          :style="{
-            transform: `translate(${view.x}px,${view.y}px) scale(${view.scale})`,
-            "--canvas-counter-scale": 1 / view.scale
-          }"
+          :style="worldStyle"
         >
           <template v-if="doc">
             <div
@@ -168,6 +174,8 @@
                   opacity: t.opacity == null ? 1 : t.opacity
                 }"
                 :data-tile="t.id"
+                @pointerenter="hoverTile = t.id"
+                @pointerleave="hoverTile = null"
               >
                 <img
                   v-if="t.url"
@@ -175,8 +183,10 @@
                   draggable="false"
                   alt="Adjusted tile (original preserved)"
                 />
-                <div v-else class="tile-placeholder">Tile available</div>
-                <span class="tile-label"
+                <div v-else class="tile-placeholder" aria-hidden="true" />
+                <span
+                  v-if="(hoverTile || selectedIds[0]) === t.id"
+                  class="tile-label"
                   >{{
                     t.asset
                       ? t.stage_position
@@ -189,23 +199,7 @@
             </template>
           </template>
         </div>
-        <div v-if="!doc" class="empty">{{ error || "Opening canvas…" }}</div>
-        <div v-if="locked" class="scan-lock">
-          {{ scanStatus || "Scanning — edits locked" }}
-        </div>
-        <div class="view-controls" @pointerdown.stop>
-          <button @click="zoom(0.8)">−</button
-          ><span>{{ Math.round(view.scale * 100) }}%</span
-          ><button @click="zoom(1.25)">＋</button
-          ><button @click="fit">Fit</button>
-        </div>
-        <div class="hint">
-          {{
-            mode === "tiles"
-              ? "Drag a tile to align · Drag background to pan"
-              : "Click a region to open its tile · Scroll to zoom"
-          }}
-        </div>
+        <div v-if="!doc && !locked && !error" class="empty">Opening canvas…</div>
       </div>
       <aside v-if="inspector && doc">
         <h3>Layers · {{ doc.tiles.length }}</h3>
@@ -226,20 +220,25 @@
               class="layer-check"
               :disabled="locked"
               :title="t.hidden ? 'Show tile' : 'Hide tile'"
+              :aria-label="t.hidden ? 'Show tile' : 'Hide tile'"
               @click.stop="toggleLayer(t)"
             >
-              <i class="material-icons">{{
-                t.hidden ? "check_box_outline_blank" : "check_box"
-              }}</i>
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="4" width="16" height="16" rx="3" />
+                <path v-if="!t.hidden" d="m8 12 3 3 5-6" />
+              </svg>
             </button>
             <span class="layer-label">{{ tileLabel(t) }}</span>
             <button
               class="layer-delete"
               :disabled="locked"
               title="Delete tile"
+              aria-label="Delete tile"
               @click.stop="prepareDelete(t)"
             >
-              <i class="material-icons">delete_outline</i>
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 6h16M9 6V3h6v3M6 6l1 14h10l1-14M10 10v6m4-6v6" />
+              </svg>
             </button>
           </div>
         </div>
@@ -344,23 +343,16 @@
       </aside>
     </div>
     <footer>
-      <button v-if="activeFovJob && !busy" @click="checkFovJob">
-        Check move / capture status
-      </button>
-      <span :class="{ error: !!error }">{{
-        error ||
-          (busy
-            ? "Saving and blending…"
-            : vpStatus ||
-              (marking
-                ? "Drag a region, then ask Codex in the conversation"
-                : "All changes saved"))
-      }}</span
-      ><button v-if="error && doc" :disabled="busy" @click="save">
-        Retry save</button
-      ><span
-        >{{ visible.length }} tiles · Layout edits never move the stage</span
-      >
+      <div class="view-controls" aria-label="Canvas zoom">
+        <button aria-label="Zoom out" @click="zoom(0.8)">−</button>
+        <span>{{ Math.round(view.scale * 100) }}%</span>
+        <button aria-label="Zoom in" @click="zoom(1.25)">＋</button>
+        <button @click="fit">Fit</button>
+      </div>
+      <span class="footer-status" :class="{ error: !!error }" role="status">{{ canvasStatus }}</span>
+      <button v-if="activeFovJob && !busy" @click="checkFovJob">Check capture</button>
+      <button v-else-if="error && doc && !locked" :disabled="busy" @click="save">Retry save</button>
+      <span v-if="doc" class="tile-total">{{ visible.length }} tiles</span>
     </footer>
     <div v-if="deleteDialog" class="delete-dialog" @pointerdown.stop>
       <div>
@@ -414,6 +406,7 @@ export default {
       error: "",
       selected: null,
       selectedIds: [],
+      hoverTile: null,
       layerDragId: null,
       selectBox: false,
       selectionRect: null,
@@ -453,8 +446,23 @@ export default {
     };
   },
   computed: {
+    worldStyle() {
+      const { x, y, scale } = this.view;
+      return {
+        transform: `translate(${x}px,${y}px) scale(${scale})`,
+        "--canvas-counter-scale": 1 / scale
+      };
+    },
     locked() {
-      return this.scanning || !!(this.doc && this.doc.locked);
+      return this.scanning || !!(this.doc && (this.doc.locked || this.doc.refine_phase === "refining"));
+    },
+    canvasStatus() {
+      if (this.error) return this.error;
+      if (this.locked) return this.scanStatus || "Scanning…";
+      if (this.busy) return "Saving and blending…";
+      if (this.vpStatus) return this.vpStatus;
+      if (this.marking) return "Drag to mark a region";
+      return this.doc ? "All changes saved" : "Opening canvas…";
     },
     activeAdjustments() {
       return (this.chosen && this.chosen.adjustments) || this.doc.adjustments;
@@ -1298,13 +1306,13 @@ export default {
         y = Math.min(...this.visible.map(t => t.y));
       const w = Math.max(...this.visible.map(t => t.x + t.w)) - x,
         h = Math.max(...this.visible.map(t => t.y + t.h)) - y;
-      const scale = Math.min(
-        (el.clientWidth - 100) / w,
-        (el.clientHeight - 100) / h,
-        2
+      const padding = Math.min(100, el.clientWidth / 4, el.clientHeight / 4);
+      const scale = Math.max(
+        0.02,
+        Math.min((el.clientWidth - padding) / w, (el.clientHeight - padding) / h, 2)
       );
       this.view = {
-        scale: Math.max(0.02, scale),
+        scale,
         x: (el.clientWidth - w * scale) / 2 - x * scale,
         y: (el.clientHeight - h * scale) / 2 - y * scale
       };
@@ -1624,8 +1632,15 @@ fieldset {
   display: grid;
   place-items: center;
 }
-.layer-row .material-icons {
-  font-size: 18px;
+.control-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .layer-check {
   color: #2465d8;
@@ -1666,22 +1681,6 @@ fieldset {
   height: 100%;
   object-fit: cover;
 }
-.stage-fov span {
-  background: #147c67;
-  color: white;
-  font-size: 12px;
-  padding: 3px;
-}
-.scan-lock {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  max-width: 60%;
-  padding: 10px 16px;
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 2px 10px #0001;
-}
 .studio.readonly .layer-row {
   cursor: default;
 }
@@ -1718,29 +1717,26 @@ fieldset {
   text-align: left;
 }
 header {
-  min-height: 54px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   align-items: center;
-  gap: 8px;
+  flex-shrink: 0;
+  gap: 8px 12px;
   padding: 8px 16px;
   background: #fff;
   border-bottom: 1px solid #e5e5e7;
 }
-.identity {
+.header-start,
+.header-end {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
-.identity strong {
+.canvas-title {
   font-size: var(--canvas-title);
   font-weight: 600;
-}
-.eyebrow {
-  font-size: var(--canvas-secondary-text);
-  letter-spacing: 0.02em;
-  color: #808086;
+  flex-shrink: 0;
 }
 button {
   border: 0;
@@ -1776,9 +1772,6 @@ button:disabled {
   display: inline-grid;
   place-items: center;
 }
-.icon-action .material-icons {
-  font-size: 19px;
-}
 nav {
   display: flex;
   background: #eeeef0;
@@ -1794,16 +1787,15 @@ nav button.active {
   color: #1959c7;
 }
 .actions {
-  margin-left: auto;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 4px;
 }
 .actions > button:last-child {
   background: #252527;
   color: #fff;
-  margin-left: 8px;
 }
 .body {
   display: flex;
@@ -1869,33 +1861,29 @@ nav button.active {
   pointer-events: none;
 }
 .view-controls {
-  position: absolute;
-  bottom: 25px;
-  left: 24px;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
-  background: #fff;
   border: 1px solid #e5e5e7;
-  border-radius: 10px;
+  border-radius: 8px;
+}
+.view-controls button {
+  min-height: 30px;
 }
 .view-controls span {
-  min-width: 45px;
+  min-width: 4ch;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.hint {
-  position: absolute;
-  bottom: 35px;
-  right: 24px;
-  font-size: var(--canvas-secondary-text);
-  color: #74747b;
-  pointer-events: none;
-}
 .empty {
   position: absolute;
-  inset: 40%;
-  white-space: nowrap;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  text-align: center;
   color: #777;
+  pointer-events: none;
 }
 aside {
   width: 270px;
@@ -1973,15 +1961,24 @@ footer {
   min-height: 36px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
+  gap: 6px 12px;
   flex-wrap: wrap;
+  flex-shrink: 0;
   padding: 5px 16px;
   box-sizing: border-box;
   background: #fff;
   border-top: 1px solid #e5e5e7;
   font-size: var(--canvas-secondary-text);
   color: #797981;
+}
+.footer-status {
+  flex: 1 1 14ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tile-total {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .error {
   color: #ac3939;
@@ -2017,50 +2014,39 @@ footer {
 }
 @media (max-width: 800px) {
   header {
+    grid-template-columns: minmax(0, 1fr) max-content;
     padding: 6px 12px;
-    gap: 6px;
-    height: auto;
   }
-  .eyebrow {
-    display: none;
+  .header-start {
+    flex-wrap: wrap;
   }
   .actions {
-    gap: 0;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
   }
-  .actions button {
-    padding: 7px;
+  .header-end {
+    grid-column: 2;
+    grid-row: 1;
   }
   aside {
     width: 210px;
     padding: 16px;
-  }
-  .hint {
-    display: none;
   }
   footer {
     padding: 5px 12px;
   }
 }
 @media (max-width: 650px) {
-  header {
-    flex-wrap: wrap;
-    height: auto;
-    padding: 10px 12px;
-    gap: 8px;
-  }
-  .actions {
-    width: 100%;
-    justify-content: space-between;
-  }
   .body {
     flex-direction: column;
   }
   .viewport {
-    min-height: 180px;
+    min-height: 110px;
   }
   aside {
     width: auto;
-    max-height: 230px;
+    max-height: min(230px, 35vh);
     border-left: 0;
     border-top: 1px solid #e5e5e7;
   }

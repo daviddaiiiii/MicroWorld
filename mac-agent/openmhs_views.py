@@ -64,8 +64,7 @@ def legacy_mosaics_root() -> Path:
     return d
 
 
-def seed_lib() -> None:
-    root = lib_root()
+def seed_lib(root: Path) -> None:
     readme = root / "README.md"
     if not readme.is_file():
         readme.write_text(
@@ -235,7 +234,6 @@ def create_view(
 
     If view_id is given (browser localStorage restore), persist that id.
     """
-    seed_lib()
     if view_id:
         vid = _safe_id(view_id)
         if (view_dir(vid) / VIEW_JSON).is_file():
@@ -437,7 +435,6 @@ def _ws() -> Path:
 
 
 def list_views() -> Dict[str, Any]:
-    seed_lib()
     cur = current_view_id()
     items: List[Dict[str, Any]] = []
     for child in sorted(views_root().iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):

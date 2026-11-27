@@ -428,7 +428,7 @@ def _status_response(sid, manifest=None):
             refine_phase=refine.get('phase') or 'idle',
             sync_complete=bool(sync.get('complete')),
         )
-        _STATUS_CACHE[str(sid)]=(now,result)
+        _STATUS_CACHE[str(sid)]=(time.monotonic(),result)
         return result
 
 def _load_response(sid, locked):
@@ -442,7 +442,7 @@ def _load_response(sid, locked):
         if cached is not None:
             return cached
         if str(sid) in _LOAD_INFLIGHT:
-            response=_status_response(sid)
+            response=dict(_status_response(sid))
             response['deferred_load']=True
             response['load_in_flight']=True
             response['message']='Canvas render already in progress; live status returned'
@@ -455,7 +455,7 @@ def _load_response(sid, locked):
             phase=(manifest.get('sync') or {}).get('phase')
             locked=phase in ('calibrating','scanning','stitching','refining')
             if locked:
-                response=_status_response(sid,manifest)
+                response=dict(_status_response(sid,manifest))
                 response['deferred_load']=True
                 return response
             key=_load_cache_key(sid)
@@ -505,7 +505,7 @@ def request(sid,body):
     # set. Return the live document immediately instead of making the Pi wait
     # for every tile to be decoded and base64-encoded.
     if action=='load' and locked:
-        response=_status_response(sid,manifest)
+        response=dict(_status_response(sid,manifest))
         response['deferred_load']=True
         response['message']='Canvas is updating; live tile status returned instead of a full Slide render'
         return response

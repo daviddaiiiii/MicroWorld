@@ -44,7 +44,7 @@ def workspace_root() -> Path:
     try:
         from openmhs_views import seed_lib
 
-        seed_lib()
+        seed_lib(root / "lib")
     except Exception:
         LOG.debug("lib seed skipped", exc_info=True)
     return root

@@ -598,9 +598,12 @@ def get_pyramid_tile(session_id: str, level: int, x: int, y: int) -> bytes:
     return path.read_bytes()
 
 
-def sync_pull_incremental(session_id: Optional[str] = None) -> Dict[str, Any]:
-    """Incrementally pull new Pi tiles into Mac workspace (safe during live scan)."""
-    details = _http_json(_scan_ext("/live_details"), timeout=20.0)
+def sync_pull_incremental(
+    session_id: Optional[str] = None, *, details: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Incrementally pull new Pi tiles into the PC workspace."""
+    if details is None:
+        details = _http_json(_scan_ext("/live_details"), timeout=20.0)
     sid = session_id or details.get("session_id")
     if not sid:
         raise ValueError("no active session on Pi")
