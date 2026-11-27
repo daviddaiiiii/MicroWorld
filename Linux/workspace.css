@@ -1,0 +1,54 @@
+.mw-sidebar {
+  background-color: shade(@theme_bg_color, 0.97);
+}
+.mw-navigation {
+  background-color: transparent;
+}
+.mw-navigation row {
+  border-radius: 7px;
+  margin-bottom: 2px;
+}
+.mw-navigation row:selected {
+  background-color: alpha(#14765f, 0.22);
+  color: @theme_fg_color;
+  font-weight: 600;
+}
+.mw-navigation row:focus {
+  outline: 2px solid #239a7e;
+  outline-offset: -2px;
+}
+.panel-heading {
+  font-weight: bold;
+}
+.workspace-heading {
+  font-size: 19px;
+}
+.address-badge,
+.numeric {
+  font-family: monospace;
+}
+.address-badge {
+  border: 1px solid alpha(@theme_fg_color, .16);
+  border-radius: 12px;
+  padding: 2px 9px;
+}
+.status-live {
+  font-weight: bold;
+}
+.microscope-surface {
+  background-color: #091015;
+  border-radius: 8px;
+}
+.gallery-item {
+  padding: 8px 12px;
+}
+
+button.suggested-action:not(:disabled) {
+  background-color: #14765f;
+  background-image: none;
+  border-color: #146450;
+  color: #fff;
+}
+button.suggested-action:hover:not(:disabled) {
+  background-color: #106650;
+}

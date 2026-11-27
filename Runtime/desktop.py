@@ -84,7 +84,7 @@ def worker_mode(target, requested, local_ip):
     base = target["url"] + EXTENSIONS + namespace
     try:
         hardware = read_json(base + ".scan-mosaic/hardware", 4)
-        owner = read_json(base + ".visual-prompts/status", 4).get("agent", {})
+        owner = read_json(base + ".visual-prompts/agent", 4)
     except OSError:
         if requested == "worker":
             raise RuntimeError("Could not confirm whether the microscope can accept a local PC Worker.")

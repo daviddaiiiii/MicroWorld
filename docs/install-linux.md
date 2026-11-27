@@ -3,15 +3,23 @@
 The Linux preview was built for Ubuntu 24.04 ARM64. The application uses a GTK window and WebKitGTK. The Pi extensions, scan and stitching logic, Canvas data, and MCP tools are shared with [the macOS version](install-macos.md).
 
 1. Install the Pi extensions once using the [Pi installation guide](../pi_setup/README.md). Connect the Ubuntu computer and Pi to the same private network. For scan processing the Pi needs access to TCP port 18766 on the computer that runs the PC Worker.
-2. Download [microworld_0.1.3-1_arm64.deb](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.3/microworld_0.1.3-1_arm64.deb) and its `.sha256` file from the same release. From the download directory, compare `sha256sum microworld_0.1.3-1_arm64.deb` with the matching checksum.
-3. Run `sudo apt install ./microworld_0.1.3-1_arm64.deb` and open **MicroWorld** in the application menu.
+2. Download [microworld_0.1.3-2_arm64.deb](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.3/microworld_0.1.3-2_arm64.deb) and its `.sha256` file from the same release. From the download directory, compare `sha256sum microworld_0.1.3-2_arm64.deb` with the matching checksum.
+3. Run `sudo apt install ./microworld_0.1.3-2_arm64.deb` and open **MicroWorld** in the application menu.
 4. Pick the Pi in **Microscopes** or enter its address, such as `microscope.local:5000`. Choose **Connect**. Linux discovery checks local IPv4 addresses, Avahi if installed, and Tailscale peers if Tailscale is running.
 
 ## Camera, stage and scans
 
-Choose **Observe**, **Gallery**, **Navigate**, **Capture**, or **Settings** in the application toolbar. **Gallery** opens saved captures and offers a **Saved canvases** shortcut. Use the **Live view** toolbar for **ROI**, **Stage**, **Focus**, and **Canvas**. Open advanced camera and calibration controls from **Settings**. Choose a grid or **Full** from Canvas. Once a scan finishes, open the refined Slide, inspect source tiles, or mark an ROI. Both desktop versions use the same Pi scanning and PC stitching implementation. [Work with the result in Codex](../README.md#use-with-codex).
+The left sidebar uses the same workspace order as macOS. Below it, **Microscopes** lists saved and discovered devices. **Refresh** looks for devices, and **Add by address** checks a specific LAN or VPN address.
 
-**PC Worker · Automatic** starts local processing when the microscope is idle and no other computer owns the Worker. When another Worker is active, you can open the camera and operate the stage subject to the Pi's acquisition lock. To process scans on Ubuntu, disconnect the other Worker, wait for its status to expire, and reconnect with **Run on this computer**.
+- **Observe** keeps the camera front and center. Use **Mark ROI**, **Fast AF**, **Snapshot**, **Recent**, and **New Scan**. Scan progress, Slide, Tiles and ROI editing use the shared Canvas viewer.
+- **Gallery** lists Canvases from the active PC Worker, local snapshots, and microscope captures. Use the search field or select an item to reopen it.
+- **Navigate** keeps a live view beside XYZ position, jog buttons, XY and Z steps, and **Go to**. Arrow keys jog XY and Page Up or Page Down jog Z. Calibrated instruments can use **Click to Center**.
+- **Capture** shows a live preview with image, scan, and Smart Stack options supported by the selected instrument. Capture supports metadata, resize, Bayer and advanced scan controls.
+- **Settings** shows connection and storage details, camera controls, camera–stage calibration, and stage scale settings.
+
+The sidebar reports microscope reachability, which computer has the PC Worker, and hardware activity. Camera state is tracked independently. A dropped connection leaves the current panel open while the app retries. Hardware controls are available again after it confirms the instrument is reachable and idle. The desktop follows the system's light or dark appearance.
+
+**Automatic** starts local processing when the microscope is idle and no other computer owns the Worker. When another Worker is active, you can open the camera and operate the stage subject to the Pi's acquisition lock. To process scans on Ubuntu, disconnect the other Worker, wait for its status to expire, and reconnect with **Run on this computer**.
 
 MicroWorld keeps its workspaces in `~/MicroWorld/Workspace/<device-id>/`, MCP activity in `~/MicroWorld/ConversationHistory/<device-id>/`, and connection state in `~/MicroWorld/State/`. The application writes `~/MicroWorld/mcp.json` and project Codex configuration on connection. Open the workspace as a trusted project in your MCP client. Slide links open in the application through `microworld://slide/…`, with the loopback viewer as an alternative in clients that only support HTTP links.
 

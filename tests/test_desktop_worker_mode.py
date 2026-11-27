@@ -16,7 +16,7 @@ class WorkerModeTest(TestCase):
     def select(self, mode, *, busy=False, owner="", online=False):
         replies = [
             {"busy": busy},
-            {"agent": {"worker_online": online, "supervisor_url": owner}},
+            {"worker_online": online, "supervisor_url": owner},
         ]
         with patch.object(desktop, "read_json", side_effect=replies):
             return desktop.worker_mode(self.device, mode, "192.168.42.5")

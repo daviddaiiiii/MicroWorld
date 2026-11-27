@@ -95,3 +95,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-se
   color: #fff !important;
   font: 600 13px system-ui, sans-serif;
 }
+
+/* The Linux app supplies its own camera toolbar. Canvas tools stay in the viewer. */
+html[data-microworld-shell="linux"] #app .openmhs-root > .mhs-toolbar {
+  display: none;
+}

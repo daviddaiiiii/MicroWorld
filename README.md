@@ -34,11 +34,11 @@ The installer adds the Canvas scan and visual-prompt extensions, backs up any pr
 - [macOS on Apple silicon](docs/install-macos.md)
 - [Ubuntu 24.04 on ARM64](docs/install-linux.md)
 
-Both desktop versions use the same microscope APIs, scan and registration logic, and MCP tools. macOS uses the SwiftUI interface. Ubuntu uses a GTK window with the shared camera and Canvas viewer.
+Both desktop versions use the same microscope APIs, scan and registration logic, and MCP tools. macOS uses the SwiftUI interface. Ubuntu uses GTK panels with the same workspace navigation and embeds the shared Canvas viewer.
 
 ### 3. Try a first scan
 
-Confirm clearance between the objective and sample before testing a small jog. Open **Observe → New Scan** on macOS or **Live view → Canvas** on Ubuntu, choose **2 × 2**, and start. Watch the four source tiles arrive and open **Slide** once PC refinement finishes. Open the saved scan later from **Gallery**.
+Confirm clearance between the objective and sample before testing a small jog. Open **Observe → New Scan** on macOS or **Observe → New Scan** on Ubuntu, choose **2 × 2**, and start. Watch the four source tiles arrive and open **Slide** once PC refinement finishes. Open the saved scan later from **Gallery**.
 
 ## Inside the app
 

@@ -18,6 +18,10 @@ def change(path, old, new):
 index = project / "public/index.html"
 change(index, "</head>", '''  <script src="/desktop/config.js"></script>
     <link rel="stylesheet" href="/microworld.css">
+    <script>
+      if (new URLSearchParams(location.search).get("shell") === "linux")
+        document.documentElement.dataset.microworldShell = "linux";
+    </script>
   </head>''')
 shutil.copyfile(resources / "microworld.css", project / "public/microworld.css")
 
@@ -36,6 +40,22 @@ change(tabs, '''    // A global signal listener to switch tab''', '''    window.
     // A global signal listener to switch tab''')
 
 observation = src / "components/tabContentComponents/openmhsContent.vue"
+change(observation, "<streamDisplay />", '<streamDisplay v-if="desktopSurfaceActive" />')
+change(observation, '      studioSession: null,', '      desktopSurfaceActive: true,\n      studioSession: null,')
+change(observation, "    this.resolveAutofocus();", """    if (document.documentElement.dataset.microworldShell === "linux") {
+      const handlers = window.webkit && window.webkit.messageHandlers;
+      const notify = value => {
+        if (handlers && handlers.microworldCanvas) handlers.microworldCanvas.postMessage(Boolean(value));
+      };
+      window.microworldWorkspace = {
+        visible: value => { this.desktopSurfaceActive = value; },
+        roi: () => this.openRoiDock(),
+        newScan: () => this.openScanSetup(),
+        canvas: id => this.switchCanvas(id),
+      };
+      this.$watch("studioSession", notify, { immediate: true });
+    }
+    this.resolveAutofocus();""")
 change(observation, "<strong>MicroWorld</strong><span>Camera · Canvas</span>",
        "<strong>Live view</strong><span>Camera</span>")
 change(observation, 'title="Stage controls"', 'title="Stage controls and coordinates"')
