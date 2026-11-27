@@ -37,8 +37,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from flask import Response, abort, send_file
-from labthings import fields, find_component, find_extension
+from flask import Response, abort, current_app, request, send_file
+from labthings import current_labthing, fields, find_component, find_extension
 from labthings.extensions import BaseExtension
 from labthings.views import ActionView, PropertyView, View
 from PIL import Image
@@ -59,7 +59,7 @@ except ImportError:  # OpenFlexure loads each extension by file path.
     spiral_grid_order = _plan_module.spiral_grid_order
 
 try:
-    from microworld_hardware import HardwareBusy, HardwareGate
+    from microworld_hardware import CONNECTION_HEADER, HardwareBusy, HardwareGate
 except ImportError:  # OpenFlexure loads each extension by file path.
     import importlib.util
 
@@ -72,6 +72,7 @@ except ImportError:  # OpenFlexure loads each extension by file path.
     _hardware_module = importlib.util.module_from_spec(_hardware_spec)
     sys.modules["microworld_hardware"] = _hardware_module
     _hardware_spec.loader.exec_module(_hardware_module)
+    CONNECTION_HEADER = _hardware_module.CONNECTION_HEADER
     HardwareBusy = _hardware_module.HardwareBusy
     HardwareGate = _hardware_module.HardwareGate
 
@@ -2089,6 +2090,7 @@ class ScanMosaicExtension(BaseExtension):
     def register_views(self):
         self.add_view(StatusView, "/status")
         self.add_view(HardwareStatusView, "/hardware")
+        self.add_view(ConnectionView, "/connection")
         self.add_view(CaptureListView, "/captures")
         self.add_view(LiveDetailsView, "/live_details")
         self.add_view(PreviewStitchView, "/latest_preview_stitch.jpg")
@@ -4998,8 +5000,12 @@ class ScanMosaicExtension(BaseExtension):
         ):
             if acquire_lock:
                 with microscope.lock(timeout=1):
-                    return _run()
-            return _run()
+                    result = _run()
+            else:
+                result = _run()
+            if self.state.mac_preview_only and self.state.keep_tiles and self.state.tile_count:
+                self.hardware.mark_processing(self.state.session_id)
+            return result
 
     def patch_stock_scan(self):
         """Make stock org.openflexure.scan/tile also run live mosaic + cleanup."""
@@ -5069,6 +5075,47 @@ class CaptureListView(View):
         return {row["id"]: row for row in rows}
 
 
+class ConnectionView(View):
+    """Claim, renew or release the desktop connection at the Pi."""
+
+    def _gate(self):
+        gate = self.extension.hardware
+        gate.install_connection_guard(current_app, current_labthing().url_prefix)
+        return gate
+
+    def get(self):
+        return self._gate().connection_status()
+
+    def post(self):
+        import ipaddress
+        from werkzeug.exceptions import Conflict
+
+        if request.headers.get("Origin"):
+            return {"error": "Use the MicroWorld desktop app to connect."}, 403
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return {"error": "Expected a JSON connection request."}, 400
+        operation = payload.get("action")
+
+        def actions_busy():
+            return any(task.is_alive() for task in current_labthing().actions.tasks())
+
+        try:
+            if operation == "claim":
+                self.extension.ensure_hardware_hooks()
+            address = ipaddress.ip_address(request.remote_addr)
+            host = "[{}]".format(address) if address.version == 6 else str(address)
+            return self._gate().connection_command(
+                operation, request.headers.get(CONNECTION_HEADER),
+                computer=str(payload.get("computer") or ""), session_id=payload.get("session_id"),
+                takeover=payload.get("takeover") is True, host=host, actions_busy=actions_busy,
+            )
+        except ValueError as exc:
+            return {"error": str(exc)}, 400
+        except Conflict as exc:
+            return {"error": exc.description}, 409
+
+
 class HardwareStatusView(View):
     """Cross-device view of the Pi's single hardware scheduling lease."""
 
@@ -5077,6 +5124,7 @@ class HardwareStatusView(View):
             self.extension.ensure_hardware_hooks()
         except Exception:
             logging.debug("hardware hook status refresh failed", exc_info=True)
+        self.extension.hardware.install_connection_guard(current_app, current_labthing().url_prefix)
         state = self.extension.hardware.status()
         scan = self.extension.state
         if state.get("busy") and state.get("operation") == "scan":
@@ -5767,6 +5815,11 @@ class TileScanAPI(ActionView):
 def _mac_supervisor_base():
     """LAN URL of PC supervisor from visual-prompts heartbeat (or last known)."""
     try:
+        extension = find_extension("org.microworld.scan-mosaic")
+        if extension is not None:
+            connection = extension.hardware.connection_status()
+            if connection["managed"]:
+                return connection["supervisor_url"]
         vp = find_extension("org.microworld.visual-prompts")
         store = getattr(vp, "store", None) or vp
         info = getattr(store, "_agent_worker", None) or {}

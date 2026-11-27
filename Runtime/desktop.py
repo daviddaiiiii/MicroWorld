@@ -12,6 +12,7 @@ import secrets
 from http.cookies import SimpleCookie
 import socket
 import sys
+import tempfile
 import threading
 import time
 from http.server import ThreadingHTTPServer
@@ -27,6 +28,8 @@ PORT = 18766
 LOCAL = f"http://127.0.0.1:{PORT}"
 EXTENSIONS = "/api/v2/extensions/"
 LEGACY = "http://127.0.0.1:18765"
+CONNECTION_HEADER = "X-MicroWorld-Connection"
+CONNECTION_LOST = "Another computer took control or the microscope restarted. Select Connect to regain control."
 HOP_HEADERS = {"connection", "content-length", "transfer-encoding", "date", "server",
                "keep-alive", "access-control-allow-origin", "vary"}
 
@@ -77,25 +80,33 @@ def configure_project(root, workspace, history):
         write_atomic(codex_config, project_config + trusted)
 
 
-def worker_mode(target, requested, local_ip):
-    if requested == "viewer" or not target["openmhs"]:
-        return False
-    namespace = target["api_namespace"]
-    base = target["url"] + EXTENSIONS + namespace
+def connection_request(url, action, *, token=None, takeover=False, timeout=4):
+    body = {"action": action}
+    if action == "claim":
+        body.update(computer=socket.gethostname(), takeover=takeover)
+    request = Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    if token:
+        request.add_unredirected_header(CONNECTION_HEADER, token)
+    with HTTP.open(request, timeout=timeout) as response:
+        return json.load(response)
+
+
+def claim_connection(url, takeover):
     try:
-        hardware = read_json(base + ".scan-mosaic/hardware", 4)
-        owner = read_json(base + ".visual-prompts/agent", 4)
-    except OSError:
-        if requested == "worker":
-            raise RuntimeError("Could not confirm whether the microscope can accept a local PC Worker.")
-        return False
-    local_urls = {LOCAL, LEGACY, f"http://{local_ip}:{PORT}", f"http://{local_ip}:18765"}
-    if hardware.get("busy") or (owner.get("worker_online") and
-                               owner.get("supervisor_url") not in local_urls):
-        if requested == "worker":
-            raise RuntimeError("Another acquisition or PC Worker is active. Wait for it to finish or disconnect it first.")
-        return False
-    return True
+        result = connection_request(url, "claim", takeover=takeover)
+        return result["token"]
+    except HTTPError as exc:
+        if exc.code in (404, 405):
+            raise RuntimeError("Update the MicroWorld extension on the microscope Pi to enable desktop connections.") from None
+        if exc.code == 409:
+            raise RuntimeError(json.load(exc).get("error", "The microscope is busy.")) from None
+        raise
+
+
+def store_connection_token(path, token):
+    with tempfile.NamedTemporaryFile(mode="w", encoding="ascii", dir=path.parent, delete=False) as record:
+        record.write(token)
+    Path(record.name).replace(path)
 
 
 def serve(args):
@@ -111,7 +122,11 @@ def serve(args):
     for folder in (workspace, history, root / "State" / "tmp", root / "Logs"):
         folder.mkdir(parents=True, exist_ok=True)
     local_ip, remote_ip = routed_address(base)
-    start_local_worker = worker_mode(target, args.mode, local_ip)
+    if not target["openmhs"]:
+        raise RuntimeError("Install the MicroWorld extension on the microscope Pi to connect.")
+    connection_url = base + EXTENSIONS + namespace + ".scan-mosaic/connection"
+    connection_token = None
+    disconnected = threading.Event()
     allowed_ips = {remote_ip}
     for alias in args.alias:
         try:
@@ -152,6 +167,9 @@ def serve(args):
             if not client.is_loopback and str(client) not in allowed_ips:
                 self._json(403, {"error": "This worker belongs to the selected microscope."})
                 return False
+            if disconnected.is_set() and urlsplit(self.path).path != "/desktop/status":
+                self._json(409, {"error": CONNECTION_LOST})
+                return False
             return True
 
     class DesktopHandler(WorkerHandler):
@@ -179,13 +197,15 @@ def serve(args):
             path = urlsplit(self.path).path
             if path == "/desktop/config.js":
                 payload = json.dumps({"microscopeURL": base, "supervisorURL": LOCAL,
-                                      "apiNamespace": namespace, "localWorker": start_local_worker})
+                                      "apiNamespace": namespace, "localWorker": True})
                 self._bytes(200, f"window.__MICROWORLD__ = {payload};".encode(), "text/javascript", "no-store")
                 return True
             if path == "/desktop/status":
                 self._json(200, {**worker.worker_status(), "device_id": args.id,
                                  "openmhs": target["openmhs"], "api_namespace": namespace,
-                                 "history": str(history), "view_only": not start_local_worker})
+                                 "history": str(history), "view_only": False,
+                                 "connected": not disconnected.is_set(),
+                                 "disconnect_reason": CONNECTION_LOST if disconnected.is_set() else None})
                 return True
             if path == "/desktop/session":
                 self._json(200, {"device_id": args.id})
@@ -263,6 +283,7 @@ def serve(args):
                 if namespace == LEGACY_API and path.startswith(canonical_prefix):
                     path = EXTENSIONS + LEGACY_API + "." + path[len(canonical_prefix):]
                 req = Request(base + path, data=body, headers=headers, method=self.command)
+                req.add_unredirected_header(CONNECTION_HEADER, connection_token)
                 try:
                     upstream = HTTP.open(req, timeout=125)
                 except HTTPError as exc:
@@ -281,7 +302,7 @@ def serve(args):
                         if key.lower() not in HOP_HEADERS:
                             self.send_header(key, value.replace(base, LOCAL) if key.lower() == "location" else value)
                     self.end_headers()
-                    while chunk := upstream.read1(65536):
+                    while not disconnected.is_set() and (chunk := upstream.read1(65536)):
                         self.wfile.write(chunk)
             except (BrokenPipeError, ConnectionResetError):
                 pass
@@ -325,7 +346,6 @@ def serve(args):
 
     desktop = ThreadingHTTPServer(("127.0.0.1", PORT), DesktopHandler)
     receiver = None
-    legacy_url = None
     started = False
 
     def stop(*_):
@@ -335,29 +355,46 @@ def serve(args):
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
+    token_path = root / "State" / "connection-token"
     try:
-        if start_local_worker and local_ip != "127.0.0.1":
+        if local_ip != "127.0.0.1":
             receiver = ThreadingHTTPServer((local_ip, PORT), WorkerHandler)
+        connection_token = claim_connection(connection_url, args.takeover)
+        os.environ["MICROWORLD_CONNECTION_TOKEN"] = connection_token
+        store_connection_token(token_path, connection_token)
+        if receiver:
             threading.Thread(target=receiver.serve_forever, daemon=True).start()
-        if start_local_worker:
-            same_device = False
-            try:
-                legacy = read_json(LEGACY + "/status", 1)
-                old_url = legacy.get("microscope")
-                same_device = bool(legacy.get("worker_running") and old_url and
-                                   identify(old_url, 1)["id"] == args.id)
-            except (OSError, ValueError):
-                pass
-            if same_device:
-                if read_json(base + EXTENSIONS + namespace + ".scan-mosaic/hardware").get("busy"):
-                    raise RuntimeError("The selected microscope is running an acquisition. Connect after it finishes.")
-                stopped = request_json(LEGACY + "/stop", {})
-                if stopped.get("worker_running"):
-                    raise RuntimeError("The existing PC Worker is still running for this microscope.")
-                legacy_url = old_url
-            started = True
-            if not worker.start_worker().get("worker_running"):
-                raise RuntimeError("The bundled PC Worker did not start. See Logs/worker.log.")
+
+        try:
+            legacy = read_json(LEGACY + "/status", 1)
+            old_url = legacy.get("microscope")
+            if legacy.get("worker_running") and old_url and identify(old_url, 1)["id"] == args.id:
+                request_json(LEGACY + "/stop", {})
+        except (OSError, ValueError):
+            pass
+        started = True
+        if not worker.start_worker().get("worker_running"):
+            raise RuntimeError("The bundled PC Worker did not start. See Logs/worker.log.")
+
+        connection_request(connection_url, "renew", token=connection_token)
+
+        def watch_connection():
+            while not disconnected.wait(2):
+                if not worker.worker_status().get("worker_running"):
+                    disconnected.set()
+                    return
+                try:
+                    connection_request(connection_url, "renew", token=connection_token)
+                except HTTPError as exc:
+                    if exc.code not in (404, 409):
+                        continue
+                    disconnected.set()
+                    worker.stop_worker()
+                    return
+                except (OSError, ValueError):
+                    continue
+
+        threading.Thread(target=watch_connection, daemon=True).start()
         configure_project(root, workspace, history)
         write_atomic(root / "State" / "connection.json", json.dumps({
             "id": args.id, "url": base, "workspace": str(workspace), "history": str(history),
@@ -380,12 +417,13 @@ def serve(args):
             receiver.server_close()
         if started:
             worker.stop_worker()
-        if legacy_url:
+        if connection_token:
+            disconnected.set()
             try:
-                if read_json(LEGACY + "/status", 2).get("microscope") == legacy_url:
-                    request_json(LEGACY + "/start", {})
+                connection_request(connection_url, "release", token=connection_token, timeout=2)
             except (OSError, ValueError):
-                print("Could not resume the previous PC Worker.", file=sys.stderr)
+                pass
+            token_path.unlink(missing_ok=True)
 
 
 def main():
@@ -401,7 +439,7 @@ def main():
     server.add_argument("--id", required=True)
     server.add_argument("--alias", action="append", default=[])
     server.add_argument("--parent", type=int)
-    server.add_argument("--mode", choices=("auto", "worker", "viewer"), default="auto")
+    server.add_argument("--takeover", action="store_true")
     args = parser.parse_args()
     if args.command == "discover":
         print(json.dumps(discover(args.saved)))

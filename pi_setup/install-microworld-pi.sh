@@ -131,6 +131,7 @@ done
 systemctl restart -- "$service"
 for endpoint in \
     "$scan_api/status" \
+    "$scan_api/connection" \
     "$extension_api/org.microworld.visual-prompts/status" \
     "$legacy_scan_api/status" \
     "$extension_api/org.openmhs.visual-prompts/status"; do

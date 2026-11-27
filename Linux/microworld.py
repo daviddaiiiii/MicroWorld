@@ -25,7 +25,7 @@ sys.path.insert(0, str(RESOURCES / "Runtime"))
 from desktop import LOCAL, write_atomic
 from instrument import Api, CAMERA, FOCUS, HARDWARE, PROMPTS, SESSION_ID, STAGE
 from network import discover, identify, read_json
-from panels import Panels, button, caption, choices, column, label, pack, scrolled
+from panels import Panels, button, caption, column, label, pack, scrolled
 
 KNOWN = ROOT / "State" / "known-devices.json"
 LAST = ROOT / "State" / "linux-device.json"
@@ -150,7 +150,7 @@ class MicroWorld(Gtk.Application):
         self.show_page()
         GLib.timeout_add(330, self.tick)
         if self.last.get("id") and self.last.get("url"):
-            self.connect_device(self.last["url"], self.last["id"], self.last.get("mode", "auto"))
+            self.connect_device(self.last["url"], self.last["id"])
         else:
             self.refresh()
 
@@ -201,12 +201,8 @@ class MicroWorld(Gtk.Application):
         self.device_list.get_style_context().add_class("mw-navigation")
         self.device_list.connect("row-activated", lambda *_: self.connect_selected())
         pack(shell, scrolled(self.device_list), True)
-        self.mode = choices("Automatic", "Run on this computer", "Use existing worker")
-        modes = {"auto": "Automatic", "worker": "Run on this computer", "viewer": "Use existing worker"}
-        self.mode.set_active_id(modes.get(self.last.get("mode"), "Automatic"))
-        self.mode.set_tooltip_text("PC Worker")
-        pack(shell, self.mode)
         self.connect_button = pack(shell, button("Connect", self.connect_selected, True))
+        self.connect_button.set_tooltip_text("Connect this computer. If the microscope is idle, this replaces its current connection.")
         self.disconnect_button = pack(shell, button("Disconnect", self.disconnect))
         self.disconnect_button.set_sensitive(False)
         pack(shell, Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
@@ -401,10 +397,9 @@ class MicroWorld(Gtk.Application):
             return
         device = selected.device
         url = device["addresses"][0]["url"]
-        mode = {"Automatic": "auto", "Run on this computer": "worker", "Use existing worker": "viewer"}
-        self.connect_device(url, device["id"], mode[self.mode.get_active_id()])
+        self.connect_device(url, device["id"], takeover=True)
 
-    def connect_device(self, url, expected, mode):
+    def connect_device(self, url, expected, *, takeover=False):
         def start():
             aliases = next(([entry["url"] for entry in item["addresses"]]
                             for item in self.devices if item["id"] == expected), [])
@@ -429,7 +424,9 @@ class MicroWorld(Gtk.Application):
             log.parent.mkdir(parents=True, exist_ok=True)
             command = [sys.executable, "-B", "-s", str(RESOURCES / "Runtime" / "desktop.py"),
                        "serve", "--root", str(ROOT), "--url", device["url"], "--id", device["id"],
-                       "--mode", mode, "--parent", str(os.getpid())]
+                       "--parent", str(os.getpid())]
+            if takeover:
+                command.append("--takeover")
             for alias in aliases:
                 command.extend(("--alias", alias))
             environment = {**os.environ, "PYTHONPATH": str(RESOURCES / "Python"), "PYTHONUNBUFFERED": "1"}
@@ -441,9 +438,9 @@ class MicroWorld(Gtk.Application):
                 try:
                     status = read_json(LOCAL + "/desktop/status", .5)
                     state = read_saved(ROOT / "State" / "connection.json", {})
-                    if status["device_id"] == device["id"] and state.get("pid") == runtime.pid:
+                    if status.get("connected") and status["device_id"] == device["id"] and state.get("pid") == runtime.pid:
                         self.runtime = runtime
-                        self.last = {"url": device["url"], "id": device["id"], "mode": mode, "aliases": aliases}
+                        self.last = {"url": device["url"], "id": device["id"], "aliases": aliases}
                         save(LAST, self.last)
                         return status
                 except (OSError, ValueError):
@@ -540,7 +537,7 @@ class MicroWorld(Gtk.Application):
         self.nav.set_sensitive(bool(self.active))
         self.workspace.set_sensitive(bool(self.active))
         self.history.set_sensitive(bool(self.active))
-        for control in (self.find, self.add, self.connect_button, self.disconnect_button, self.mode):
+        for control in (self.find, self.add, self.connect_button, self.disconnect_button):
             control.set_sensitive(not self.working and not self.action_name)
         self.disconnect_button.set_sensitive(bool(self.active and not self.working and not self.action_name))
         text = "Microscope connected" if self.online else ("Microscope offline" if self.health_failures >= 3 or not self.active
@@ -602,6 +599,9 @@ class MicroWorld(Gtk.Application):
         need_worker = now - self.actual.get("worker_at", 0) >= 5
 
         def load():
+            status = api.request("/desktop/status", timeout=1)
+            if status.get("connected") is False:
+                return {"disconnect_reason": status["disconnect_reason"]}
             result = {"position": api.request(STAGE, timeout=1.4)}
             if api.connection["openmhs"]:
                 try:
@@ -611,7 +611,7 @@ class MicroWorld(Gtk.Application):
                     result["hardware_error"] = True
                 if need_worker:
                     try:
-                        result["local_worker"] = bool(api.request("/desktop/status").get("worker_running"))
+                        result["local_worker"] = bool(status.get("worker_running"))
                         result["worker"] = api.request(PROMPTS + "/agent", timeout=2.0)
                         result["worker_error"] = False
                     except OSError:
@@ -622,6 +622,11 @@ class MicroWorld(Gtk.Application):
         def finish(value, error):
             self.probing = False
             if self.api is not api:
+                return
+            if value and value.get("disconnect_reason"):
+                reason = value["disconnect_reason"]
+                self.operate("Disconnecting…", self.stop_runtime,
+                             lambda _: (self.clear_connection(), self.notice(reason, True)))
                 return
             reached = self.online
             worker_available = self.worker_available
@@ -802,7 +807,7 @@ class MicroWorld(Gtk.Application):
             return
         device = next((item for item in self.devices if item["id"] == device_id), None)
         if device:
-            self.connect_device(device["addresses"][0]["url"], device_id, "auto")
+            self.connect_device(device["addresses"][0]["url"], device_id)
         else:
             self.notice("Connect to the microscope for this Slide link.")
 

@@ -21,6 +21,8 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
+from openmhs_proxy import authorize_microscope_request
+
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
@@ -173,7 +175,7 @@ def http_json(path: str, method: str = "GET", data: Optional[Dict[str, Any]] = N
     headers = {"Accept": "application/json"}
     if body is not None:
         headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    req = authorize_microscope_request(urllib.request.Request(url, data=body, headers=headers, method=method))
     try:
         with _HTTP_OPENER.open(req, timeout=120) as resp:
             raw = resp.read()
@@ -181,10 +183,28 @@ def http_json(path: str, method: str = "GET", data: Optional[Dict[str, Any]] = N
     except Exception as exc:
         # Errno 65 often = Local Network privacy denial for LaunchAgent Python
         msg = str(exc)
-        if "Errno 65" in msg or "No route to host" in msg or "Network is unreachable" in msg:
+        if not os.environ.get("MICROWORLD_CONNECTION_TOKEN") and (
+            "Errno 65" in msg or "No route to host" in msg or "Network is unreachable" in msg
+        ):
             LOG.warning("urllib blocked (%s); retry via /usr/bin/curl", msg[:120])
             return _curl_json(url, method, body, 120)
         raise
+
+
+def report_finished_scans() -> None:
+    from openmhs_mosaic_store import _scan_ext
+
+    with _sync_lock:
+        session_ids = list(_pending_finished_scans)
+    for sid in session_ids:
+        try:
+            http_json(_scan_ext("/connection"), method="POST",
+                      data={"action": "finish", "session_id": sid})
+        except OSError:
+            LOG.debug("Scan processing completion will retry for %s", sid, exc_info=True)
+        else:
+            with _sync_lock:
+                _pending_finished_scans.discard(sid)
 
 
 def heartbeat_loop() -> None:
@@ -192,6 +212,7 @@ def heartbeat_loop() -> None:
     while True:
         try:
             report_heartbeat(force=True)
+            report_finished_scans()
         except Exception:
             LOG.exception("background heartbeat error")
         time.sleep(5.0)
@@ -221,12 +242,15 @@ def _supervisor_url() -> str:
 _archived_sessions = set()
 _finalize_busy = set()
 _sync_lock = threading.Lock()
+_pending_finished_scans = set()
 
 
 def _finalize_after_sync(sid: str) -> None:
-    """Refine on Mac, then drop Pi copies; Continue can hydrate from PC."""
+    """Refine on the PC Worker before releasing the scan for handoff."""
+    finished = False
     try:
         from openmhs_mosaic_store import (
+            _scan_ext,
             pull_slide_image,
             read_manifest,
             refine_status,
@@ -247,6 +271,7 @@ def _finalize_after_sync(sid: str) -> None:
             if phase == "done" and status.get("refined"):
                 break
             if phase == "error":
+                finished = True
                 raise RuntimeError(
                     "PC Worker refinement failed: {}".format(status.get("error") or "unknown error")
                 )
@@ -254,6 +279,7 @@ def _finalize_after_sync(sid: str) -> None:
         else:
             raise TimeoutError("PC Worker refinement timed out")
 
+        finished = True
         man = read_manifest(sid)
         pull_slide_image(sid, man.get("mosaic_id") or man.get("slide_id"))
 
@@ -264,8 +290,6 @@ def _finalize_after_sync(sid: str) -> None:
             return
 
         try:
-            from openmhs_mosaic_store import _scan_ext
-
             http_json(
                 _scan_ext("/cleanup_tiles"),
                 method="POST",
@@ -285,7 +309,11 @@ def _finalize_after_sync(sid: str) -> None:
         LOG.exception("finalize after sync failed for %s", sid)
     finally:
         with _sync_lock:
+            if finished and os.environ.get("MICROWORLD_CONNECTION_TOKEN"):
+                _pending_finished_scans.add(sid)
             _finalize_busy.discard(sid)
+        if finished:
+            report_finished_scans()
 
 
 def maybe_ingest_workspace(skip_session_id: Optional[str] = None) -> None:

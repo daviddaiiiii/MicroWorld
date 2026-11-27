@@ -112,7 +112,7 @@ final class DeviceStore {
         }
     }
 
-    func connect(_ device: Device, address: DeviceAddress) async {
+    func connect(_ device: Device, address: DeviceAddress, takeover: Bool = true) async {
         guard !working, connection?.address != address else { return }
         switching = true
         message = ""
@@ -132,7 +132,7 @@ final class DeviceStore {
             slideLink = nil
             connection = nil
             await runtime.disconnect()
-            let next = try await runtime.connect(device, to: address)
+            let next = try await runtime.connect(device, to: address, takeover: takeover)
             connection = next
             selected = device.id
             tab = device.openmhs ? .observe : .navigate
@@ -157,6 +157,23 @@ final class DeviceStore {
         await runtime.disconnect()
     }
 
+    func watchConnection() async {
+        guard let generation = connection?.generation else { return }
+        while !Task.isCancelled, connection?.generation == generation {
+            if let status = try? await runtime.read("/desktop/status", as: DesktopStatus.self),
+               status.connected == false, connection?.generation == generation, !switching {
+                switching = true
+                slideLink = nil
+                connection = nil
+                message = status.disconnectReason ?? "The microscope disconnected."
+                await runtime.disconnect()
+                switching = false
+                return
+            }
+            try? await Task.sleep(for: .seconds(2))
+        }
+    }
+
     private func acquisitionIsBusy() async -> Bool {
         if instrumentBusy { return true }
         guard connection?.openmhs == true else { return false }
@@ -175,11 +192,13 @@ final class DeviceStore {
         pendingSlide = nil
         if connection == nil, let device = devices.first(where: { $0.id == link.deviceID }),
            let address = device.addresses.first {
-            await connect(device, address: address)
+            await connect(device, address: address, takeover: false)
         }
         guard latestSlideRequest == link.requestID else { return }
         guard connection?.id == link.deviceID else {
-            message = "Connect to OpenFlexure \(link.deviceID.suffix(5).uppercased()) to open this Slide."
+            if message.isEmpty {
+                message = "Connect to OpenFlexure \(link.deviceID.suffix(5).uppercased()) to open this Slide."
+            }
             return
         }
         if await acquisitionIsBusy() {

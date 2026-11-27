@@ -22,6 +22,15 @@ _DEFAULT_NO_PROXY = (
 )
 
 
+def authorize_microscope_request(request):
+    """Send the connection token only to the selected microscope origin."""
+    token = os.environ.get("MICROWORLD_CONNECTION_TOKEN")
+    origin = (os.environ.get("OPENMHS_MICROSCOPE_URL") or "").rstrip("/")
+    if token and origin and request.full_url.startswith(origin + "/"):
+        request.add_unredirected_header("X-MicroWorld-Connection", token)
+    return request
+
+
 def _truthy_disable(raw: str) -> bool:
     return raw.strip().lower() in ("0", "false", "no", "off")
 

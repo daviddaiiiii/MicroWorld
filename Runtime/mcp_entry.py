@@ -49,7 +49,8 @@ def checked_connection(pinned):
     if any(current[k] != pinned[k] for k in ("id", "url", "pid")):
         raise RuntimeError("MicroWorld changed instruments. Start a new MCP session for the current device.")
     live = read_json(LOCAL + "/desktop/status", 2)
-    if live.get("device_id") != pinned["id"] or live.get("microscope") != pinned["url"]:
+    if (live.get("connected") is False or live.get("device_id") != pinned["id"]
+            or live.get("microscope") != pinned["url"]):
         raise RuntimeError("The pinned microscope is disconnected in MicroWorld.")
     if identify(pinned["url"], 2)["id"] != pinned["id"]:
         raise RuntimeError("The device at this address changed. Reconnect from MicroWorld.")
@@ -72,15 +73,22 @@ def slide_links(pinned, sid):
             "open_in_browser": f"{LOCAL}/?{query}"}
 
 
+def microscope_json(url):
+    request = Request(url)
+    request.add_unredirected_header("X-MicroWorld-Connection", os.environ["MICROWORLD_CONNECTION_TOKEN"])
+    with HTTP.open(request, timeout=12) as response:
+        return json.load(response)
+
+
 def start_scan(pinned):
     namespace = pinned.get("api_namespace", LEGACY_API)
     base = pinned["url"]
     scan_api = f"{base}/api/v2/extensions/{namespace}.scan-mosaic"
     if not pinned.get("openmhs") or not read_json(LOCAL + "/desktop/status").get("worker_running"):
         raise RuntimeError("Connect to a microscope with the MicroWorld Pi extensions and a running PC Worker first.")
-    if read_json(scan_api + "/hardware").get("busy"):
+    if microscope_json(scan_api + "/hardware").get("busy"):
         raise RuntimeError("The microscope is busy.")
-    previous = read_json(scan_api + "/live_details")
+    previous = microscope_json(scan_api + "/live_details")
     if previous.get("cell_count"):
         previous_id = identifier(previous.get("session_id"), "previous session ID")
         try:
@@ -101,6 +109,7 @@ def start_scan(pinned):
     checked_connection(pinned)
     request = Request(scan_api + "/tile", data=json.dumps(body).encode(),
                       headers={"Content-Type": "application/json"})
+    request.add_unredirected_header("X-MicroWorld-Connection", os.environ["MICROWORLD_CONNECTION_TOKEN"])
     with HTTP.open(request, timeout=12) as response:
         action = json.load(response)
     route = ACTION_PATH.fullmatch(urlsplit(action["href"]).path)
@@ -111,7 +120,7 @@ def start_scan(pinned):
 
 def scan_status(pinned, action_id):
     action_id = identifier(action_id, "scan action ID")
-    action = read_json(pinned["url"] + f"/api/v2/actions/{action_id}")
+    action = microscope_json(pinned["url"] + f"/api/v2/actions/{action_id}")
     data = {"action_id": action_id, "device_id": pinned["id"], "status": action["status"]}
     if action["status"] in {"error", "cancelled"}:
         data["log"] = action.get("log", [])
@@ -176,6 +185,8 @@ def run_extra(message, pinned, upstream):
 
 def main():
     pinned = state()
+    os.environ["MICROWORLD_CONNECTION_TOKEN"] = (STATE.parent / "connection-token").read_text(encoding="ascii")
+    checked_connection(pinned)
     os.environ["OPENMHS_MICROSCOPE_URL"] = pinned["url"]
     os.environ["MICROWORLD_API_NAMESPACE"] = pinned.get("api_namespace", LEGACY_API)
     os.environ["OPENMHS_WORKSPACE"] = pinned["workspace"]

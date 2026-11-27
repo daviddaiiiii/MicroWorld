@@ -50,6 +50,7 @@ struct ContentView: View {
             .frame(width: 420)
         }
         .task { await store.start() }
+        .task(id: store.connection?.generation) { await store.watchConnection() }
     }
 
     private var sidebar: some View {
@@ -155,6 +156,7 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .disabled(active || store.working)
+                    .help("Connect this computer. If the microscope is idle, this replaces its current connection.")
                     .accessibilityIdentifier("connect-device")
                     if device.addresses.count > 1 {
                         Menu {

@@ -53,6 +53,13 @@ def ofm_url(path: str) -> str:
     return MICROSCOPE_URL.rstrip("/") + path
 
 
+def authorize_request(request):
+    token = os.environ.get("MICROWORLD_CONNECTION_TOKEN")
+    if token and request.full_url.startswith(MICROSCOPE_URL + "/"):
+        request.add_unredirected_header("X-MicroWorld-Connection", token)
+    return request
+
+
 def http_json(
     path: str,
     method: str = "GET",
@@ -76,7 +83,7 @@ def http_json(
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with HTTP.open(req, timeout=120) as resp:
+        with HTTP.open(authorize_request(req), timeout=120) as resp:
             raw = resp.read()
             return json.loads(raw.decode("utf-8")) if raw else {}
     except urllib.error.HTTPError as exc:
@@ -92,7 +99,7 @@ def http_bytes(path: str, base: str = "vp") -> tuple:
     else:
         url = api_base() + path
     req = urllib.request.Request(url, headers={"Accept": "*/*"})
-    with HTTP.open(req, timeout=60) as resp:
+    with HTTP.open(authorize_request(req), timeout=60) as resp:
         return resp.read(), resp.headers.get_content_type() or "application/octet-stream"
 
 
@@ -463,7 +470,7 @@ def presence(read=False):
     try:
         body = json.dumps({"read": read}).encode()
         req = urllib.request.Request(api_base() + "/codex", data=body, headers={"Content-Type": "application/json"})
-        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=3) as response:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(authorize_request(req), timeout=3) as response:
             response.read()
     except Exception:
         pass

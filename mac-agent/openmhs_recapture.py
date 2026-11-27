@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.request import Request,build_opener,ProxyHandler
 from urllib.parse import urlparse
 import openmhs_mosaic_store as store
+from openmhs_proxy import authorize_microscope_request
 
 _lock=threading.Lock()
 active_sessions=set()
@@ -16,7 +17,7 @@ def _json(path,data):
 
 def _request(url,body=None):
     req=Request(url,data=None if body is None else json.dumps(body).encode(),headers={'Content-Type':'application/json'})
-    with HTTP.open(req,timeout=15) as r:return json.load(r)
+    with HTTP.open(authorize_microscope_request(req),timeout=15) as r:return json.load(r)
 
 def _id(value):return str(uuid.UUID(value))
 
@@ -109,7 +110,7 @@ def _start(sid,plan_id,confirm_same_sample=False):
                     state.update(phase='completed',completed=1,stage_position=result['stage_position'],focus=result.get('focus',{}))
                     return
                 path=revision/('t_%s_%s.jpg'%(t['ix'],t['iy']))
-                with HTTP.open(store._scan_ext('/recapture_image?token=')+result['token'],timeout=20) as r:path.write_bytes(r.read())
+                with HTTP.open(authorize_microscope_request(Request(store._scan_ext('/recapture_image?token=')+result['token'])),timeout=20) as r:path.write_bytes(r.read())
                 from PIL import Image
                 with Image.open(path) as im:im.verify()
                 replacements.append(dict(t,relpath=str(path.relative_to(store.session_dir(sid))),

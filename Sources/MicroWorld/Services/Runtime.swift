@@ -55,7 +55,7 @@ final class Runtime {
         return try JSONDecoder().decode(type, from: data)
     }
 
-    func connect(_ device: Device, to address: DeviceAddress) async throws -> Connection {
+    func connect(_ device: Device, to address: DeviceAddress, takeover: Bool) async throws -> Connection {
         let logDir = root.appendingPathComponent("Logs", isDirectory: true)
         try FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
         let logURL = logDir.appendingPathComponent("desktop.log")
@@ -63,7 +63,8 @@ final class Runtime {
         let log = try FileHandle(forWritingTo: logURL)
         let aliases = device.addresses.flatMap { ["--alias", $0.url] }
         let next = process(["serve", "--root", root.path, "--url", address.url,
-                            "--id", device.id, "--parent", String(ProcessInfo.processInfo.processIdentifier)] + aliases)
+                            "--id", device.id, "--parent", String(ProcessInfo.processInfo.processIdentifier)]
+                            + aliases + (takeover ? ["--takeover"] : []))
         next.standardOutput = log
         next.standardError = log
         try next.run()
@@ -73,7 +74,7 @@ final class Runtime {
             if !next.isRunning { break }
             if let info = try? await read("/desktop/status", as: DesktopStatus.self),
                info.deviceID == device.id, info.microscope == address.url,
-               info.workerRunning || info.viewOnly == true || !info.openmhs {
+               info.connected == true, info.workerRunning {
                 return Connection(id: device.id, address: address,
                                   workspace: URL(fileURLWithPath: info.workspace, isDirectory: true),
                                   history: URL(fileURLWithPath: info.history, isDirectory: true),
@@ -105,7 +106,8 @@ struct DesktopStatus: Decodable {
     let microscope: String
     let workerRunning: Bool
     let openmhs: Bool
-    let viewOnly: Bool?
+    let connected: Bool?
+    let disconnectReason: String?
     let apiNamespace: String?
     let workspace: String
     let history: String
@@ -113,7 +115,8 @@ struct DesktopStatus: Decodable {
     enum CodingKeys: String, CodingKey {
         case deviceID = "device_id"
         case workerRunning = "worker_running"
-        case viewOnly = "view_only"
+        case connected
+        case disconnectReason = "disconnect_reason"
         case apiNamespace = "api_namespace"
         case microscope, openmhs, workspace, history
     }

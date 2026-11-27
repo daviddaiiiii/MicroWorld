@@ -228,10 +228,29 @@ class VisualPromptStore(object):
             "agent": agent,
         }
 
+    @staticmethod
+    def managed_connection():
+        from labthings import current_labthing
+
+        api = current_labthing()
+        extension = api.extensions.get("org.microworld.scan-mosaic") if api else None
+        if extension is not None:
+            return extension.hardware.connection_status()
+        return {"managed": False}
+
     def agent_status(self, stale_after_s=90):
         """Report PC worker connectivity; model/API credentials are not used here."""
-        settings = self.read_settings()
+        connection = self.managed_connection()
         info = dict(self._agent_worker or {})
+        if connection["managed"]:
+            online = connection["connected"] and info.get("connection_id") == connection["connection_id"]
+            return {
+                "ok": True, "connected": online, "healthy": online, "supervisor_ok": online,
+                "worker_online": online, "workspace": info.get("workspace") if online else None,
+                "worker_id": info.get("worker_id") if online else None,
+                "supervisor_url": connection["supervisor_url"], "last_seen": info.get("last_seen") if online else None,
+            }
+        settings = self.read_settings()
         last = info.get("last_seen")
         age = None
         hb_fresh = False
@@ -329,16 +348,20 @@ class VisualPromptStore(object):
 
     def agent_heartbeat(self, payload):
         payload = payload or {}
+        connection = self.managed_connection()
         ws = str(payload.get("workspace") or "").strip()[:500] or None
         sup = str(payload.get("supervisor_url") or "").strip()[:500] or None
+        if connection["managed"]:
+            sup = connection["supervisor_url"]
         self._agent_worker = {
             "last_seen": utc_now(),
+            "connection_id": connection.get("connection_id"),
             "worker_id": str(payload.get("worker_id") or "")[:120] or None,
             "workspace": ws,
             "supervisor_url": sup,
         }
         # Persist PC supervisor URL so Pi restart / brief blips keep /mac/* proxy alive
-        if sup:
+        if sup and not connection["managed"]:
             try:
                 self.write_settings({"pc_supervisor_url": sup})
             except Exception:

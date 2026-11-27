@@ -15,15 +15,21 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import tempfile
 import threading
 import time
 import uuid
 from contextlib import contextmanager
 from functools import wraps
+from ipaddress import ip_address
 from typing import Any, Dict, Optional
 
+from flask import g, has_request_context, request
 from werkzeug.exceptions import Conflict
+
+CONNECTION_HEADER = "X-MicroWorld-Connection"
+CONNECTION_GRACE = 30
 
 
 class HardwareBusy(Conflict):
@@ -40,6 +46,10 @@ class HardwareBusy(Conflict):
         )
 
 
+class ConnectionLost(Conflict):
+    description = "This computer no longer controls the microscope. Connect again to regain control."
+
+
 class HardwareGate:
     """A re-entrant, process-wide lease around hardware scheduling."""
 
@@ -48,6 +58,10 @@ class HardwareGate:
         self._mutex = threading.RLock()
         self._local = threading.local()
         self._active: Optional[Dict[str, Any]] = None
+        self._connection = None
+        self._managed = False
+        self._writes = 0
+        self._processing = None
         self._pid = os.getpid()
         os.makedirs(os.path.dirname(state_path), exist_ok=True)
         self._clear_stale_state()
@@ -77,9 +91,113 @@ class HardwareGate:
             except FileNotFoundError:
                 pass
 
+    def install_connection_guard(self, app, api_prefix):
+        """Install once before the first managed connection can be granted."""
+        with self._mutex:
+            if app.extensions.get("microworld_connection_guard") is self:
+                return
+            prefix = api_prefix.rstrip("/") + "/"
+
+            def authorize():
+                if not request.path.startswith(prefix) or request.path.rstrip("/").endswith((
+                    "/org.microworld.scan-mosaic/connection", "/org.openmhs.scan-mosaic/connection"
+                )):
+                    return
+                write = request.method not in {"GET", "HEAD", "OPTIONS"}
+                token = request.headers.get(CONNECTION_HEADER)
+                with self._mutex:
+                    discovery = not write and request.path.rstrip("/") == prefix.rstrip("/")
+                    local_read = not write and request.remote_addr and ip_address(request.remote_addr).is_loopback
+                    if token or (self._managed and not (discovery or local_read)):
+                        self._check_connection(token)
+                    if write:
+                        self._writes += 1
+                        g.microworld_write = True
+
+            def finish_request(_error):
+                if g.pop("microworld_write", False):
+                    with self._mutex:
+                        self._writes -= 1
+
+            # Extensions can be loaded outside an application context, so bind
+            # at the first extension request, before accepting any claim.
+            app.before_request_funcs.setdefault(None, []).insert(0, authorize)
+            app.teardown_request_funcs.setdefault(None, []).append(finish_request)
+            app.extensions["microworld_connection_guard"] = self
+
+    def _check_connection(self, token):
+        connection = self._connection
+        if not token or not token.isascii() or connection is None or not secrets.compare_digest(token, connection["token"]):
+            raise ConnectionLost()
+        return connection
+
+    def _connected_recently(self):
+        return self._connection is not None and time.monotonic() - self._connection["seen"] < CONNECTION_GRACE
+
+    def connection_status(self):
+        with self._mutex:
+            current = self._connection or {}
+            live = self._connected_recently()
+            processing = self._processing if live else None
+            return {
+                "managed": self._managed,
+                "connected": live,
+                "computer": current.get("computer") if live else None,
+                "supervisor_url": current.get("supervisor_url") if live else None,
+                "connection_id": current.get("id") if live else None,
+                "processing": processing,
+            }
+
+    def connection_command(self, operation, token, *, computer="", host="", takeover=False, session_id=None, actions_busy=None):
+        with self._mutex:
+            if operation == "renew":
+                self._check_connection(token)["seen"] = time.monotonic()
+                return {"connected": True}
+            if operation == "finish":
+                self._check_connection(token)
+                if self._processing == session_id:
+                    self._processing = None
+                return {"connected": True}
+            if operation == "release":
+                self._check_connection(token)
+            elif operation != "claim":
+                raise ValueError("Unknown connection action")
+
+            busy = self._active or (self._processing and self._connected_recently() and {
+                "operation": "scan processing", "phase": "processing", "session_id": self._processing,
+            })
+            if busy or self._writes or (actions_busy and actions_busy()):
+                raise HardwareBusy(busy)
+            if operation == "release":
+                self._connection = None
+                return {"connected": False}
+            if self._connected_recently() and not takeover:
+                raise Conflict("Another computer is connected. Select Connect to take over when the microscope is idle.")
+
+            self._managed = True
+            self._processing = None
+            self._connection = {
+                "id": uuid.uuid4().hex,
+                "token": secrets.token_urlsafe(32),
+                "computer": computer[:100],
+                "supervisor_url": "http://{}:18766".format(host),
+                "seen": time.monotonic(),
+            }
+            return {"connected": True, "token": self._connection["token"]}
+
+    def mark_processing(self, session_id):
+        if not has_request_context() or not request.headers.get(CONNECTION_HEADER) or not session_id:
+            return
+        with self._mutex:
+            self._check_connection(request.headers[CONNECTION_HEADER])
+            self._processing = str(session_id)
+
     def status(self) -> Dict[str, Any]:
         with self._mutex:
             state = dict(self._active or {})
+            if not state and self._processing and self._connected_recently():
+                state = {"busy": True, "operation": "scan processing",
+                         "phase": "processing", "session_id": self._processing}
             if not state:
                 state = {"busy": False}
             state.setdefault("busy", bool(self._active))
@@ -148,8 +266,12 @@ class HardwareGate:
             return
 
         with self._mutex:
+            if has_request_context() and self._managed:
+                self._check_connection(request.headers.get(CONNECTION_HEADER))
             if self._active:
                 raise HardwareBusy(self._active)
+            if self._processing and self._connected_recently():
+                raise HardwareBusy(self.status())
             now = time.time()
             state = {
                 "busy": True,

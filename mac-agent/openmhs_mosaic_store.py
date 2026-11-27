@@ -21,6 +21,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 LOG = logging.getLogger("openmhs.mosaic_store")
 
+from openmhs_proxy import authorize_microscope_request
+
 _refine_lock = threading.Lock()
 _refine_threads: Dict[str, threading.Thread] = {}
 
@@ -241,7 +243,7 @@ def _curl_bytes(url: str, timeout: float) -> bytes:
 
 
 def _http_json(url: str, timeout: float = 30.0) -> Any:
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    req = authorize_microscope_request(urllib.request.Request(url, headers={"Accept": "application/json"}))
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -255,7 +257,7 @@ def _http_json(url: str, timeout: float = 30.0) -> Any:
 
 
 def _http_bytes(url: str, timeout: float = 60.0) -> bytes:
-    req = urllib.request.Request(url)
+    req = authorize_microscope_request(urllib.request.Request(url))
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read()
