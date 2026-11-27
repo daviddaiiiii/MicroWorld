@@ -5,6 +5,7 @@ arch="$(dpkg --print-architecture)"
 case "$arch" in arm64|amd64) ;; *) echo "Unsupported Linux architecture: $arch" >&2; exit 1 ;; esac
 python3.12 -c 'import sys; assert sys.version_info[:2] == (3, 12)'
 version="$(python3.12 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleShortVersionString"])' "$root/Resources/Info.plist")"
+version="$version-1"
 web="${1:-$root/.build/Web}"
 if [[ ! -f "$web/index.html" ]]; then
   "$root/script/build_web.sh"

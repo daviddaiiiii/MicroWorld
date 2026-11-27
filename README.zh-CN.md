@@ -32,7 +32,7 @@ sudo ./install-microworld-pi.sh
 ### 2. 安装电脑端 App
 
 - **macOS** 下载并解压 Mac 安装包，打开 **MicroWorld.app**，按提示允许访问本地网络。[macOS 安装说明](docs/install-macos.md)
-- **Ubuntu 24.04 ARM64** 下载 `microworld_0.1.3_arm64.deb`，运行 `sudo apt install ./microworld_0.1.3_arm64.deb`，然后在应用菜单打开 **MicroWorld**。[Linux 安装说明](docs/install-linux.md)
+- **Ubuntu 24.04 ARM64** 下载 `microworld_0.1.3-1_arm64.deb`，运行 `sudo apt install ./microworld_0.1.3-1_arm64.deb`，然后在应用菜单打开 **MicroWorld**。[Linux 安装说明](docs/install-linux.md)
 
 在 **Microscopes** 选择显微镜并连接。两个系统的界面布局略有差异，使用同一套显微镜 API、扫描、配准融合和 MCP 工具。PC Worker 在持有扫描工作区的电脑上运行。Ubuntu 也可以独立启动 [DeepSeek Harness 窗口](docs/install-linux.md#optional-deepseek-harness-window)。
 

@@ -25,6 +25,13 @@ from network import discover, identify, read_json
 
 KNOWN = ROOT / "State" / "known-devices.json"
 LAST = ROOT / "State" / "linux-device.json"
+WORKSPACE_TABS = (
+    ("Observe", "openmhs"),
+    ("Gallery", "gallery"),
+    ("Navigate", "navigate"),
+    ("Capture", "capture"),
+    ("Settings", "settings"),
+)
 
 
 def read_saved(path, default):
@@ -61,6 +68,7 @@ class MicroWorld(Gtk.Application):
         self.devices = read_saved(KNOWN, [])
         self.last = read_saved(LAST, {})
         self.pending_slide = None
+        self.selected_tab = "openmhs"
 
     def do_activate(self):
         if self.window:
@@ -89,7 +97,28 @@ class MicroWorld(Gtk.Application):
         self.window.add(self.stack)
         self.browser = WebKit2.WebView()
         self.browser.connect("decide-policy", self.navigate)
-        self.stack.add_named(self.browser, "viewer")
+        self.browser.connect("load-changed", self.viewer_loaded)
+        viewer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        toolbar = Gtk.Box(spacing=12, margin_start=14, margin_end=14,
+                          margin_top=8, margin_bottom=8)
+        tabs = Gtk.Box()
+        tabs.get_style_context().add_class("linked")
+        self.workspace_tabs = {}
+        for label, route in WORKSPACE_TABS:
+            button = Gtk.RadioButton.new_with_label_from_widget(
+                self.workspace_tabs.get("openmhs"), label
+            )
+            button.set_mode(False)
+            self.workspace_tabs[route] = button
+            tabs.pack_start(button, False, False, 0)
+            button.connect("toggled", self.change_workspace_tab, route)
+        toolbar.pack_start(tabs, False, False, 0)
+        self.saved_canvases = put_button(toolbar, "Saved canvases", self.open_saved_canvases, right=True)
+        self.saved_canvases.set_no_show_all(True)
+        viewer.pack_start(toolbar, False, False, 0)
+        viewer.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 0)
+        viewer.pack_start(self.browser, True, True, 0)
+        self.stack.add_named(viewer, "viewer")
 
         panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
                         halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
@@ -142,6 +171,34 @@ class MicroWorld(Gtk.Application):
             self.stack.set_visible_child_name("viewer")
             mode = "Local PC Worker" if self.active["worker_running"] else "Camera and stage"
             self.header.set_subtitle(f'{self.active["device_id"][-5:]} · {mode}')
+
+    def change_workspace_tab(self, button, route):
+        if button.get_active():
+            self.selected_tab = route
+            self.saved_canvases.set_visible(route == "gallery")
+            self.apply_workspace_tab()
+
+    def viewer_loaded(self, _view, event):
+        if event == WebKit2.LoadEvent.FINISHED:
+            self.apply_workspace_tab()
+
+    def apply_workspace_tab(self):
+        if (self.browser.get_uri() or "").startswith(LOCAL + "/"):
+            route = json.dumps(self.selected_tab)
+            self.browser.evaluate_javascript(
+                f"window.microworldRequestedTab = {route}; "
+                f"window.microworldSelectTab?.({route});", -1
+            )
+
+    def open_saved_canvases(self, *_):
+        self.workspace_tabs["openmhs"].set_active(True)
+        # Let Vue finish switching panels before opening the existing Canvas picker.
+        self.browser.evaluate_javascript(
+            """requestAnimationFrame(() => {
+                const canvas = document.querySelector('.mhs-tools .mw-primary');
+                if (canvas && !document.querySelector('.camera-tiles-menu')) canvas.click();
+            });""", -1
+        )
 
     def fill_devices(self):
         choice = self.device_menu.get_active_id() or self.last.get("url")
@@ -264,6 +321,7 @@ class MicroWorld(Gtk.Application):
             self.workspace.set_sensitive(True)
             self.history.set_sensitive(True)
             self.message.set_text("")
+            self.workspace_tabs["openmhs"].set_active(True)
             self.browser.load_uri(LOCAL + "/")
             self.show_viewer()
             if self.pending_slide:
@@ -321,6 +379,7 @@ class MicroWorld(Gtk.Application):
         device_id, slide = match.groups()
         if self.active and self.active["device_id"] == device_id:
             self.pending_slide = None
+            self.workspace_tabs["openmhs"].set_active(True)
             self.browser.load_uri(LOCAL + "/?" + urlencode({
                 "device": device_id, "slide": slide, "native": "1",
             }))

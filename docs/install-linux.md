@@ -3,13 +3,13 @@
 The Linux preview was built for Ubuntu 24.04 ARM64. The application uses a GTK window and WebKitGTK. The Pi extensions, scan and stitching logic, Canvas data, and MCP tools are shared with [the macOS version](install-macos.md).
 
 1. Install the Pi extensions once using the [Pi installation guide](../pi_setup/README.md). Connect the Ubuntu computer and Pi to the same private network. For scan processing the Pi needs access to TCP port 18766 on the computer that runs the PC Worker.
-2. Download [microworld_0.1.3_arm64.deb](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.3/microworld_0.1.3_arm64.deb) and the release checksum file. From the download directory, compare `sha256sum microworld_0.1.3_arm64.deb` with the matching checksum.
-3. Run `sudo apt install ./microworld_0.1.3_arm64.deb` and open **MicroWorld** in the application menu.
+2. Download [microworld_0.1.3-1_arm64.deb](https://github.com/daviddaiiiii/MicroWorld/releases/download/v0.1.3/microworld_0.1.3-1_arm64.deb) and its `.sha256` file from the same release. From the download directory, compare `sha256sum microworld_0.1.3-1_arm64.deb` with the matching checksum.
+3. Run `sudo apt install ./microworld_0.1.3-1_arm64.deb` and open **MicroWorld** in the application menu.
 4. Pick the Pi in **Microscopes** or enter its address, such as `microscope.local:5000`. Choose **Connect**. Linux discovery checks local IPv4 addresses, Avahi if installed, and Tailscale peers if Tailscale is running.
 
 ## Camera, stage and scans
 
-Use the **Live view** toolbar for **ROI**, **Stage**, **Focus**, and **Canvas**. Open advanced camera and calibration controls from **Settings**. Choose a grid or **Full** from Canvas. Once a scan finishes, open the refined Slide, inspect source tiles, or mark an ROI. Both desktop versions use the same Pi scanning and PC stitching implementation. [Work with the result in Codex](../README.md#use-with-codex).
+Choose **Observe**, **Gallery**, **Navigate**, **Capture**, or **Settings** in the application toolbar. **Gallery** opens saved captures and offers a **Saved canvases** shortcut. Use the **Live view** toolbar for **ROI**, **Stage**, **Focus**, and **Canvas**. Open advanced camera and calibration controls from **Settings**. Choose a grid or **Full** from Canvas. Once a scan finishes, open the refined Slide, inspect source tiles, or mark an ROI. Both desktop versions use the same Pi scanning and PC stitching implementation. [Work with the result in Codex](../README.md#use-with-codex).
 
 **PC Worker · Automatic** starts local processing when the microscope is idle and no other computer owns the Worker. When another Worker is active, you can open the camera and operate the stage subject to the Pi's acquisition lock. To process scans on Ubuntu, disconnect the other Worker, wait for its status to expire, and reconnect with **Run on this computer**.
 
