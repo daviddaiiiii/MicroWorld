@@ -1,5 +1,7 @@
 # MicroWorld
 
+<img src="Resources/MicroWorld-web.png" width="112" alt="MicroWorld">
+
 **面向 OpenFlexure 显微镜的原生 macOS 工作台。**
 
 在一个窗口里找设备、看实时画面、控制载物台、扫描画布，再圈出要复拍或分析的 ROI。随 App 打包的 PC Worker 在 Mac 上保存 Canvas、配准和融合图像。接入 MCP 后，可以在 Codex 对话里发起扫描，再接着分析你在 App 里标出的区域。

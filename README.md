@@ -1,5 +1,7 @@
 # MicroWorld
 
+<img src="Resources/MicroWorld-web.png" width="112" alt="MicroWorld">
+
 **A native macOS workspace for OpenFlexure microscopy.**
 
 Find a microscope, move and focus the stage, capture a tiled scan, then mark the exact region you want to revisit or analyze. MicroWorld brings the live camera, stage controls and Slide viewer into one app. The Mac runs the bundled PC Worker for Canvas storage, registration and fusion. An optional MCP connection lets Codex start a scan and work with the ROI you marked.

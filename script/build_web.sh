@@ -15,3 +15,4 @@ if ! cmp -s .microworld-npm-lock package-lock.json || [[ ! -x node_modules/.bin/
 fi
 python3 "$root/script/adapt_web.py" "$staged" "$root/Resources"
 NODE_OPTIONS=--openssl-legacy-provider VUE_APP_ENABLE_IMJOY=false node_modules/.bin/vue-cli-service build --mode production --dest "$root/.build/Web" --skip-plugins @vue/cli-plugin-eslint
+python3 "$root/script/app_icon.py" --web "$root/.build/Web"
