@@ -129,9 +129,10 @@
             <div
               v-if="showFov && stageBox"
               class="stage-fov"
+              :class="{ 'fov-outline': mode === 'slide' }"
               :style="box(pendingTile || stageBox)"
             >
-              <streamDisplay class="fov-live" />
+              <streamDisplay v-if="mode === 'tiles'" class="fov-live" />
               <div
                 class="fov-tools"
                 :style="{ transform: `scale(${1 / view.scale})` }"
@@ -1661,8 +1662,11 @@ fieldset {
   cursor: grab;
   box-sizing: border-box;
   overflow: hidden;
-  background: #111;
   box-shadow: 0 3px 18px #0003;
+}
+.stage-fov.fov-outline {
+  box-shadow: none;
+  pointer-events: none;
 }
 .stage-fov:active {
   cursor: grabbing;
