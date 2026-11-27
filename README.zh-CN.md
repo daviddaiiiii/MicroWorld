@@ -6,7 +6,7 @@
 
 在一个窗口里找设备、看实时画面、控制载物台、扫描画布，再圈出要复拍或分析的 ROI。随 App 打包的 PC Worker 在电脑上保存 Canvas、配准和融合图像。接入 MCP 后，可以在 Codex 对话里发起扫描，再接着分析你在 App 里标出的区域。
 
-[下载 macOS、Ubuntu 和 Pi 安装包](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.7) · [安装和连接](#安装和连接) · [配合 Codex 使用](#配合-codex-使用) · [English](README.md)
+[下载 macOS、Ubuntu 和 Pi 安装包](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.8) · [安装和连接](#安装和连接) · [配合 Codex 使用](#配合-codex-使用) · [English](README.md)
 
 ![MicroWorld 的四图块 Slide，显示已标记的矩形 ROI 和图层面板](docs/images/canvas-roi.jpg)
 
@@ -18,12 +18,12 @@
 
 ### 1. 在 Pi 上安装扩展
 
-从[同一个公开 Release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.7)下载 **MicroWorld-0.1.7-Pi.tar.gz** 及对应的 **.tar.gz.sha256** 文件。可以在 Pi 上直接下载，也可从电脑把两个文件复制到 Pi。等显微镜空闲后，在 Pi 的下载目录执行：
+从[同一个公开 Release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.8)下载 **MicroWorld-0.1.8-Pi.tar.gz** 及对应的 **.tar.gz.sha256** 文件。可以在 Pi 上直接下载，也可从电脑把两个文件复制到 Pi。等显微镜空闲后，在 Pi 的下载目录执行：
 
 ```bash
-sha256sum -c MicroWorld-0.1.7-Pi.tar.gz.sha256
-tar -xzf MicroWorld-0.1.7-Pi.tar.gz
-cd MicroWorld-0.1.7-Pi
+sha256sum -c MicroWorld-0.1.8-Pi.tar.gz.sha256
+tar -xzf MicroWorld-0.1.8-Pi.tar.gz
+cd MicroWorld-0.1.8-Pi
 sudo ./install-microworld-pi.sh
 ```
 
@@ -32,7 +32,7 @@ sudo ./install-microworld-pi.sh
 ### 2. 安装电脑端 App
 
 - **macOS** 下载并解压 Mac 安装包，打开 **MicroWorld.app**，按提示允许访问本地网络。[macOS 安装说明](docs/install-macos.md)
-- **Ubuntu 24.04 ARM64** 下载 `microworld_0.1.7-2_arm64.deb`，运行 `sudo apt install ./microworld_0.1.7-2_arm64.deb`，然后在应用菜单打开 **MicroWorld**。[Linux 安装说明](docs/install-linux.md)
+- **Ubuntu 24.04 ARM64** 下载 `microworld_0.1.8-2_arm64.deb`，运行 `sudo apt install ./microworld_0.1.8-2_arm64.deb`，然后在应用菜单打开 **MicroWorld**。[Linux 安装说明](docs/install-linux.md)
 
 在 **Microscopes** 选择显微镜并连接。两个系统的左栏都使用 Observe、Gallery、Navigate、Capture 和 Settings，且共用显微镜 API、扫描、配准融合和 MCP 工具。每台显微镜同时只接受一台电脑连接。点击 **Connect** 可接管空闲的显微镜，采集和 Slide 处理期间须等待。各电脑保留自己保存的画布。Ubuntu 也可以独立启动 [DeepSeek Harness 窗口](docs/install-linux.md#optional-deepseek-harness-window)。
 
@@ -77,6 +77,6 @@ cd MicroWorld
 open MicroWorld.app
 ```
 
-构建包含 SwiftUI App、Python 运行时、PC Worker、MCP 服务及浏览器 Slide 查看器。在此仓库运行 `./script/build_pi_release.sh 0.1.7` 可以重新打包 Pi 扩展。来源和归属见 [NOTICE.md](NOTICE.md)。
+构建包含 SwiftUI App、Python 运行时、PC Worker、MCP 服务及浏览器 Slide 查看器。在此仓库运行 `./script/build_pi_release.sh 0.1.8` 可以重新打包 Pi 扩展。来源和归属见 [NOTICE.md](NOTICE.md)。
 
 Ubuntu 可通过 `./script/build_linux.sh` 构建。详见 [Linux 构建说明](docs/install-linux.md#build-from-source)。

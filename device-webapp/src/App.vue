@@ -209,8 +209,6 @@ export default {
 
   created: function() {
     window.addEventListener("beforeunload", this.handleExit);
-    // Scrollwheel listener
-    window.addEventListener("wheel", this.wheelMonitor);
     // Watch for origin changes
     this.unwatchOriginFunction = this.$store.watch(
       (state, getters) => {
@@ -300,8 +298,6 @@ export default {
     if (this.themeObserver) {
       this.themeObserver.disconnect();
     }
-    // Remove scrollwheel listener
-    window.removeEventListener("wheel", this.wheelMonitor);
     // Remove origin watcher
     this.unwatchOriginFunction();
     // Remove key listeners
@@ -328,19 +324,6 @@ export default {
 
     handleExit: function() {
       this.$root.$emit("globalTogglePreview", false);
-    },
-
-    // Handle global mouse wheel events to be associated with navigation
-    wheelMonitor: function(event) {
-      // Only capture scroll if the event target's parent contains the "scrollTarget" class
-      if (
-        event.target.parentNode.classList.contains("scrollTarget") ||
-        event.target.classList.contains("scrollTarget")
-      ) {
-        var z_rel = event.deltaY / 100;
-        // Emit a signal to move, acted on by panelNavigate.vue
-        this.$root.$emit("globalMoveStepEvent", 0, 0, z_rel, false);
-      }
     },
 
     navigateKeyHandler: function() {

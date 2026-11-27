@@ -73,7 +73,7 @@
       @pointermove="onSurfacePointerMove"
       @pointerup="onSurfacePointerUp"
       @pointercancel="onSurfacePointerUp"
-      @wheel.prevent="onWheel"
+      @wheel="onWheel"
     >
       <!-- Camera layer -->
       <div
@@ -3946,14 +3946,10 @@ export default {
       this.moveRel(d[0], d[1], d[2]);
     },
     onWheel(e) {
-      if (this.agentDrawing) return;
-      if (this.scanZoomEnabled) {
-        const factor = e.deltaY > 0 ? 0.9 : 1.12;
-        this.zoomScanAt(e.clientX, e.clientY, factor);
-        return;
-      }
-      if (this.zControlsLocked) return;
-      this.moveRel(0, 0, (e.deltaY > 0 ? -1 : 1) * this.stepFor("z"));
+      if (this.agentDrawing || !this.scanZoomEnabled || !e.deltaY) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.12;
+      this.zoomScanAt(e.clientX, e.clientY, factor);
     },
     onSurfacePointerDown(e) {
       if (this.controlsLocked || this.agentDrawing) return;

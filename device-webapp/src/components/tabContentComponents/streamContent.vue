@@ -3,7 +3,7 @@
     id="stream-display"
     ref="streamDisplay"
     v-observe-visibility="visibilityChanged"
-    class="stream-display uk-width-1-1 uk-height-1-1 scrollTarget"
+    class="stream-display uk-width-1-1 uk-height-1-1"
   >
     <img
       v-if="isVisible"
