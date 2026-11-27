@@ -73,7 +73,7 @@ final class Runtime {
             if !next.isRunning { break }
             if let info = try? await read("/desktop/status", as: DesktopStatus.self),
                info.deviceID == device.id, info.microscope == address.url,
-               info.workerRunning || !info.openmhs {
+               info.workerRunning || info.viewOnly == true || !info.openmhs {
                 return Connection(id: device.id, address: address,
                                   workspace: URL(fileURLWithPath: info.workspace, isDirectory: true),
                                   history: URL(fileURLWithPath: info.history, isDirectory: true),
@@ -105,6 +105,7 @@ struct DesktopStatus: Decodable {
     let microscope: String
     let workerRunning: Bool
     let openmhs: Bool
+    let viewOnly: Bool?
     let apiNamespace: String?
     let workspace: String
     let history: String
@@ -112,6 +113,7 @@ struct DesktopStatus: Decodable {
     enum CodingKeys: String, CodingKey {
         case deviceID = "device_id"
         case workerRunning = "worker_running"
+        case viewOnly = "view_only"
         case apiNamespace = "api_namespace"
         case microscope, openmhs, workspace, history
     }

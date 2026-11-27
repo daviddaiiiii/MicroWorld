@@ -4,12 +4,12 @@ Use this package on a Raspberry Pi with a running OpenFlexure microscope server 
 
 ## Install or update
 
-Download the Pi archive and its SHA-256 file from the [MicroWorld release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.2). Either download on the Pi or copy the two files to it. Run these commands on the Pi from the download directory:
+Download the Pi archive and its SHA-256 file from the [MicroWorld release](https://github.com/daviddaiiiii/MicroWorld/releases/tag/v0.1.3). Either download on the Pi or copy the two files to it. Run these commands on the Pi from the download directory:
 
 ```bash
-sha256sum -c MicroWorld-0.1.2-Pi.tar.gz.sha256
-tar -xzf MicroWorld-0.1.2-Pi.tar.gz
-cd MicroWorld-0.1.2-Pi
+sha256sum -c MicroWorld-0.1.3-Pi.tar.gz.sha256
+tar -xzf MicroWorld-0.1.3-Pi.tar.gz
+cd MicroWorld-0.1.3-Pi
 sudo ./install-microworld-pi.sh
 ```
 

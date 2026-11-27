@@ -8,6 +8,7 @@ import re
 import shutil
 import socket
 import subprocess
+import sys
 import urllib.request
 from urllib.parse import urlsplit
 
@@ -60,14 +61,28 @@ def run_output(argv, timeout):
         return ""
 
 
-def lan_hosts():
-    text = run_output(["/sbin/ifconfig", "-u"], 2)
-    for line in text.splitlines():
+def lan_interfaces():
+    if sys.platform.startswith("linux"):
+        try:
+            interfaces = json.loads(run_output(["ip", "-j", "-4", "address", "show", "up", "scope", "global"], 2))
+        except ValueError:
+            return
+        for device in interfaces:
+            for address in device.get("addr_info", []):
+                if address.get("broadcast"):
+                    yield ipaddress.IPv4Interface((address["local"], address["prefixlen"]))
+        return
+
+    for line in run_output(["/sbin/ifconfig", "-u"], 2).splitlines():
         match = re.search(r"\binet (\d+\.\d+\.\d+\.\d+) netmask (0x[0-9a-fA-F]+)", line)
-        if not match or "broadcast" not in line:
-            continue
-        local, mask = match.groups()
-        interface = ipaddress.IPv4Interface((local, str(ipaddress.IPv4Address(int(mask, 16)))))
+        if match and "broadcast" in line:
+            local, mask = match.groups()
+            yield ipaddress.IPv4Interface((local, str(ipaddress.IPv4Address(int(mask, 16)))))
+
+
+def lan_hosts():
+    for interface in lan_interfaces():
+        local = str(interface.ip)
         network = interface.network
         # A large campus network can have tens of thousands of hosts. Limit
         # active discovery to the local /24; Bonjour/manual cover routed hosts.
@@ -79,6 +94,13 @@ def lan_hosts():
 
 
 def bonjour_hosts():
+    if sys.platform.startswith("linux"):
+        text = run_output(["avahi-browse", "-rtp", "_http._tcp"], 2)
+        for line in text.splitlines():
+            fields = line.split(";")
+            if len(fields) >= 9 and fields[0] == "=" and fields[2] == "IPv4":
+                yield f"{fields[7]}:{fields[8]}"
+        return
     # dns-sd intentionally keeps browsing. Collect its initial result window.
     try:
         with subprocess.Popen(
@@ -91,9 +113,9 @@ def bonjour_hosts():
                 browser.terminate()
                 output, _ = browser.communicate(timeout=1)
     except (OSError, subprocess.TimeoutExpired):
-        return []
-    return [f"{host.rstrip('.')}:{port}" for port, host in
-            re.findall(r"\bSRV\s+\d+\s+\d+\s+(\d+)\s+(\S+)", output)]
+        return
+    for port, host in re.findall(r"\bSRV\s+\d+\s+\d+\s+(\d+)\s+(\S+)", output):
+        yield f"{host.rstrip('.')}:{port}"
 
 
 def tailscale_hosts():
@@ -123,7 +145,7 @@ def tailscale_hosts():
 def discover(saved):
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
         local = pool.submit(lambda: list(lan_hosts()))
-        bonjour = pool.submit(bonjour_hosts)
+        bonjour = pool.submit(lambda: list(bonjour_hosts()))
         tail = pool.submit(tailscale_hosts)
         vpn, state = tail.result()
         candidates = {address: "Tailscale" for address in vpn}

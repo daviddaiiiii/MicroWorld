@@ -53,12 +53,21 @@ def routed_address(url):
 
 
 def configure_project(root, workspace, history):
-    command = str(root / "script" / "mcp")
-    entry = {"command": command, "args": []}
+    entry = {"command": str(root / "script" / "mcp"), "args": []}
+    if sys.platform.startswith("linux"):
+        entry = {
+            "command": sys.executable,
+            "args": ["-B", "-s", str(RESOURCES / "Runtime" / "mcp_entry.py"), str(root)],
+            "env": {"PYTHONPATH": str(RESOURCES / "Python")},
+        }
     write_atomic(root / "mcp.json", json.dumps({"mcpServers": {"microworld": entry}}, indent=2) + "\n")
-    write_atomic(root / ".codex" / "config.toml",
-                 "[mcp_servers.microworld]\ncommand = " + json.dumps(command, ensure_ascii=False) + "\n"
-                 "startup_timeout_sec = 12\ntool_timeout_sec = 150\n")
+    toml = ("[mcp_servers.microworld]\ncommand = " + json.dumps(entry["command"], ensure_ascii=False) + "\n"
+            "args = " + json.dumps(entry["args"], ensure_ascii=False) + "\n"
+            "startup_timeout_sec = 12\ntool_timeout_sec = 150\n")
+    if entry.get("env"):
+        toml += "[mcp_servers.microworld.env]\nPYTHONPATH = " + json.dumps(
+            entry["env"]["PYTHONPATH"], ensure_ascii=False) + "\n"
+    write_atomic(root / ".codex" / "config.toml", toml)
     # Keep the standalone Codex launcher fully project scoped as well.
     project_config = (root / ".codex" / "config.toml").read_text(encoding="utf-8")
     write_atomic(workspace / ".codex" / "config.toml", project_config)
@@ -66,6 +75,27 @@ def configure_project(root, workspace, history):
     if not codex_config.exists():
         trusted = "\n[projects." + json.dumps(str(workspace), ensure_ascii=False) + "]\ntrust_level = \"trusted\"\n"
         write_atomic(codex_config, project_config + trusted)
+
+
+def worker_mode(target, requested, local_ip):
+    if requested == "viewer" or not target["openmhs"]:
+        return False
+    namespace = target["api_namespace"]
+    base = target["url"] + EXTENSIONS + namespace
+    try:
+        hardware = read_json(base + ".scan-mosaic/hardware", 4)
+        owner = read_json(base + ".visual-prompts/status", 4).get("agent", {})
+    except OSError:
+        if requested == "worker":
+            raise RuntimeError("Could not confirm whether the microscope can accept a local PC Worker.")
+        return False
+    local_urls = {LOCAL, LEGACY, f"http://{local_ip}:{PORT}", f"http://{local_ip}:18765"}
+    if hardware.get("busy") or (owner.get("worker_online") and
+                               owner.get("supervisor_url") not in local_urls):
+        if requested == "worker":
+            raise RuntimeError("Another acquisition or PC Worker is active. Wait for it to finish or disconnect it first.")
+        return False
+    return True
 
 
 def serve(args):
@@ -81,6 +111,7 @@ def serve(args):
     for folder in (workspace, history, root / "State" / "tmp", root / "Logs"):
         folder.mkdir(parents=True, exist_ok=True)
     local_ip, remote_ip = routed_address(base)
+    start_local_worker = worker_mode(target, args.mode, local_ip)
     allowed_ips = {remote_ip}
     for alias in args.alias:
         try:
@@ -154,7 +185,7 @@ def serve(args):
             if path == "/desktop/status":
                 self._json(200, {**worker.worker_status(), "device_id": args.id,
                                  "openmhs": target["openmhs"], "api_namespace": namespace,
-                                 "history": str(history)})
+                                 "history": str(history), "view_only": not start_local_worker})
                 return True
             if path == "/desktop/session":
                 self._json(200, {"device_id": args.id})
@@ -305,10 +336,10 @@ def serve(args):
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     try:
-        if local_ip != "127.0.0.1":
+        if start_local_worker and local_ip != "127.0.0.1":
             receiver = ThreadingHTTPServer((local_ip, PORT), WorkerHandler)
             threading.Thread(target=receiver.serve_forever, daemon=True).start()
-        if target["openmhs"]:
+        if start_local_worker:
             same_device = False
             try:
                 legacy = read_json(LEGACY + "/status", 1)
@@ -370,6 +401,7 @@ def main():
     server.add_argument("--id", required=True)
     server.add_argument("--alias", action="append", default=[])
     server.add_argument("--parent", type=int)
+    server.add_argument("--mode", choices=("auto", "worker", "viewer"), default="auto")
     args = parser.parse_args()
     if args.command == "discover":
         print(json.dumps(discover(args.saved)))

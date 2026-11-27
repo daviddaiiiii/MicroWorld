@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=MicroWorld
+Comment=Connect to your microscope and open scans
+Exec=microworld %U
+Icon=org.microworld.app
+Categories=Science;
+Terminal=false
+MimeType=x-scheme-handler/microworld;
+StartupNotify=true
